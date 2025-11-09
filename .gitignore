@@ -23,3 +23,6 @@ Thumbs.db
 
 # Test outputs
 test_results/
+
+# User configuration files
+speedtest_config.json

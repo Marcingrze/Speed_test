@@ -8,22 +8,62 @@ Measures download speed, upload speed, and ping latency.
 
 import sys
 import time
+import os
+import json
+from pathlib import Path
 import speedtest
 from typing import Optional, Dict, Any, Tuple
 
 
-# Constants
-BITS_TO_MBPS = 1_000_000
-CONNECTIVITY_CHECK_TIMEOUT = 10
-SPEEDTEST_TIMEOUT = 60
-MAX_RETRIES = 3
-RETRY_DELAY = 2  # seconds
+# Default configuration
+DEFAULT_CONFIG = {
+    'bits_to_mbps': 1_000_000,
+    'connectivity_check_timeout': 10,
+    'speedtest_timeout': 60,
+    'max_retries': 3,
+    'retry_delay': 2,
+    'max_typical_speed_gbps': 1,
+    'max_reasonable_speed_gbps': 10,
+    'max_typical_ping_ms': 1000,
+    'max_reasonable_ping_ms': 10000,
+    'show_detailed_progress': True
+}
 
-# Validation bounds - tiered approach
-MAX_TYPICAL_SPEED_GBPS = 1      # 1 Gbps for typical connections
-MAX_REASONABLE_SPEED_GBPS = 10  # 10 Gbps absolute maximum
-MAX_TYPICAL_PING_MS = 1000      # 1 second for typical ping
-MAX_REASONABLE_PING_MS = 10000  # 10 seconds absolute maximum
+# Global configuration (will be loaded from file or defaults)
+config = DEFAULT_CONFIG.copy()
+
+
+def load_config() -> None:
+    """Load configuration from file or use defaults.
+    
+    Looks for speedtest_config.json in current directory.
+    If not found, uses default configuration.
+    """
+    global config
+    config_file = Path('speedtest_config.json')
+    
+    if config_file.exists():
+        try:
+            with open(config_file, 'r') as f:
+                file_config = json.load(f)
+            # Update config with values from file, keeping defaults for missing keys
+            config.update(file_config)
+            print(f"Configuration loaded from {config_file}")
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Warning: Could not load config file {config_file}: {e}")
+            print("Using default configuration.")
+    else:
+        print("Using default configuration (create speedtest_config.json to customize).")
+
+
+def create_sample_config() -> None:
+    """Create a sample configuration file if it doesn't exist."""
+    config_file = Path('speedtest_config.json')
+    if not config_file.exists():
+        with open(config_file, 'w') as f:
+            json.dump(DEFAULT_CONFIG, f, indent=2)
+        print(f"Sample configuration file created: {config_file}")
+        print("Edit this file to customize speed test settings.")
 
 
 def check_network_connectivity() -> bool:
@@ -34,7 +74,7 @@ def check_network_connectivity() -> bool:
     """
     try:
         # Try to create a speedtest object with a short timeout
-        test_client = speedtest.Speedtest(timeout=CONNECTIVITY_CHECK_TIMEOUT)
+        test_client = speedtest.Speedtest(timeout=config['connectivity_check_timeout'])
         test_client.get_config()
         return True
     except (speedtest.SpeedtestException, speedtest.ConfigRetrievalError, 
@@ -42,7 +82,7 @@ def check_network_connectivity() -> bool:
         return False
 
 
-def run_speed_test_with_retry(max_retries: int = MAX_RETRIES) -> Optional[Dict[str, Any]]:
+def run_speed_test_with_retry(max_retries: int = None) -> Optional[Dict[str, Any]]:
     """Run speed test with retry logic for transient failures.
     
     Args:
@@ -51,14 +91,17 @@ def run_speed_test_with_retry(max_retries: int = MAX_RETRIES) -> Optional[Dict[s
     Returns:
         Dict containing test results or None if all attempts failed
     """
+    if max_retries is None:
+        max_retries = config['max_retries']
+        
     for attempt in range(max_retries):
         try:
             return run_speed_test()
         except (speedtest.ConfigRetrievalError, OSError, ConnectionError) as e:
             if attempt < max_retries - 1:
                 print(f"Attempt {attempt + 1} failed: {e}")
-                print(f"Retrying in {RETRY_DELAY} seconds...")
-                time.sleep(RETRY_DELAY)
+                print(f"Retrying in {config['retry_delay']} seconds...")
+                time.sleep(config['retry_delay'])
                 continue
             else:
                 print(f"All {max_retries} attempts failed. Last error: {e}")
@@ -81,7 +124,7 @@ def run_speed_test() -> Optional[Dict[str, Any]]:
     
     try:
         print("Initializing speed test...")
-        speedtest_client = speedtest.Speedtest(timeout=SPEEDTEST_TIMEOUT)
+        speedtest_client = speedtest.Speedtest(timeout=config['speedtest_timeout'])
         
         print("Fetching server list...")
         speedtest_client.get_servers()
@@ -90,13 +133,21 @@ def run_speed_test() -> Optional[Dict[str, Any]]:
         best_server = speedtest_client.get_best_server()
         print(f"Using server: {best_server['sponsor']} ({best_server['name']})")
         
-        print("Testing download speed...")
+        # Download test with detailed progress
+        if config['show_detailed_progress']:
+            print("Testing download speed... (typically takes 10-30 seconds)")
+        else:
+            print("Testing download speed...")
         start_time = time.time()
         speedtest_client.download()
         download_time = time.time() - start_time
         print(f"Download test completed in {download_time:.1f} seconds")
         
-        print("Testing upload speed...")
+        # Upload test with detailed progress
+        if config['show_detailed_progress']:
+            print("Testing upload speed... (typically takes 15-45 seconds)")
+        else:
+            print("Testing upload speed...")
         start_time = time.time()
         speedtest_client.upload()
         upload_time = time.time() - start_time
@@ -156,20 +207,20 @@ def validate_results(results: Dict[str, Any]) -> Tuple[bool, str]:
             return False, "Invalid negative values detected - measurement failed"
             
         # Check for absolutely unreasonable values
-        max_reasonable_bps = MAX_REASONABLE_SPEED_GBPS * 1_000_000_000
+        max_reasonable_bps = config['max_reasonable_speed_gbps'] * 1_000_000_000
         if download > max_reasonable_bps or upload > max_reasonable_bps:
             return False, "Extremely high speeds detected - likely measurement error"
             
-        if ping > MAX_REASONABLE_PING_MS:
+        if ping > config['max_reasonable_ping_ms']:
             return False, "Extremely high ping detected - likely measurement error"
         
         # Check for unusually high but not impossible values
-        max_typical_bps = MAX_TYPICAL_SPEED_GBPS * 1_000_000_000
+        max_typical_bps = config['max_typical_speed_gbps'] * 1_000_000_000
         if download > max_typical_bps or upload > max_typical_bps:
             speed_gbps = max(download, upload) / 1_000_000_000
             return True, f"Unusually high speed ({speed_gbps:.1f} Gbps) - please verify results"
             
-        if ping > MAX_TYPICAL_PING_MS:
+        if ping > config['max_typical_ping_ms']:
             return True, f"High latency ({ping:.0f} ms) detected - connection may be slow"
         
         # Check for suspiciously low values that might indicate issues
@@ -190,8 +241,8 @@ def format_and_display_results(results: Dict[str, Any]) -> None:
     """
     try:
         # Safely extract values with defaults
-        download_speed = results.get('download', 0) / BITS_TO_MBPS
-        upload_speed = results.get('upload', 0) / BITS_TO_MBPS
+        download_speed = results.get('download', 0) / config['bits_to_mbps']
+        upload_speed = results.get('upload', 0) / config['bits_to_mbps']
         ping_latency = results.get('ping', 0)
         
         print("\n" + "="*40)
@@ -215,6 +266,14 @@ def main() -> int:
     """
     print("Internet Speed Test Tool")
     print("-" * 25)
+    
+    # Load configuration
+    load_config()
+    
+    # Check if user wants to create sample config
+    if len(sys.argv) > 1 and sys.argv[1] == '--create-config':
+        create_sample_config()
+        return 0
     
     # Check network connectivity first
     print("Checking network connectivity...")

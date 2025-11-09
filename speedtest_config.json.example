@@ -1,0 +1,12 @@
+{
+  "bits_to_mbps": 1000000,
+  "connectivity_check_timeout": 10,
+  "speedtest_timeout": 60,
+  "max_retries": 3,
+  "retry_delay": 2,
+  "max_typical_speed_gbps": 1,
+  "max_reasonable_speed_gbps": 10,
+  "max_typical_ping_ms": 1000,
+  "max_reasonable_ping_ms": 10000,
+  "show_detailed_progress": true
+}
