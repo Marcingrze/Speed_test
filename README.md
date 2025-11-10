@@ -1,6 +1,6 @@
 # Internet Speed Test Tool
 
-Narzędzie do testowania prędkości połączenia internetowego z zaawansowaną obsługą błędów, konfiguracją i walidacją wyników.
+Narzędzie do testowania prędkości połączenia internetowego z zaawansowaną obsługą błędów, konfiguracją i walidacją wyników. Dostępne jako aplikacja konsolowa i graficzny interfejs użytkownika (GUI).
 
 ## 📋 Opis
 
@@ -11,12 +11,14 @@ To jest profesjonalne narzędzie do testowania prędkości internetu napisane w 
 
 ### ✨ Główne funkcjonalności
 
+- **Dwa interfejsy** - konsola (CLI) i graficzny interfejs (GUI)
 - **Zaawansowana obsługa błędów** - automatyczne ponowne próby przy przejściowych problemach sieciowych
 - **Elastyczna konfiguracja** - wszystkie parametry można dostosować przez plik JSON
 - **Walidacja wyników** - inteligentne ostrzeżenia o nieprawdopodobnych wynikach
 - **Progresywne informacje** - szczegółowe informacje o postępie testów
 - **Sprawdzenie łączności** - wstępna weryfikacja połączenia internetowego
 - **Przyjazny interfejs** - czytelny wyświetlacz wyników z formatowaniem
+- **Modern Material Design** - nowoczesny GUI z animacjami i responsywnym designem
 
 ## 🚀 Szybki start
 
@@ -46,6 +48,7 @@ pip install -r requirements.txt
 
 ### Podstawowe użycie
 
+**Aplikacja konsolowa (CLI):**
 ```bash
 # Uruchom test z domyślną konfiguracją
 python sp.py
@@ -53,6 +56,39 @@ python sp.py
 # Utwórz plik konfiguracyjny do dostosowania
 python sp.py --create-config
 ```
+
+**Aplikacja graficzna (GUI):**
+```bash
+# Uruchom interfejs graficzny
+python speedtest_gui.py
+```
+
+## 🎨 Interfejs graficzny (GUI)
+
+### Funkcjonalności GUI
+
+- **Modern Material Design** - nowoczesny wygląd zgodny z Material Design
+- **Real-time progress** - animowany pasek postępu z informacjami o etapie testu
+- **Responsive design** - automatyczne dostosowanie do rozmiaru okna
+- **Intuitive controls** - prosty interfejs z przyciskami Start/Stop
+- **Visual results** - przejrzyste wyświetlanie wyników w kartach
+- **Error handling** - przyjazne komunikaty błędów i ostrzeżeń
+- **Settings dialog** - możliwość konfiguracji (planowane w przyszłych wersjach)
+
+### Uruchomienie GUI
+
+```bash
+# Uruchom aplikację graficzną
+python speedtest_gui.py
+```
+
+### Architektura GUI
+
+- **speedtest_gui.py** - główna aplikacja GUI z interfejsem KivyMD
+- **speedtest_core.py** - logika biznesowa wspólna dla CLI i GUI
+- **Asynchronous testing** - testy działają w tle bez blokowania interfejsu
+- **Progress callbacks** - real-time aktualizacje postępu
+- **Thread safety** - bezpieczne operacje wielowątkowe
 
 ## ⚙️ Konfiguracja
 
@@ -128,7 +164,9 @@ python sp.py
 
 ```
 Speed_test/
-├── sp.py                           # Główna aplikacja
+├── sp.py                           # Główna aplikacja CLI
+├── speedtest_gui.py                # Aplikacja GUI (Kivy/KivyMD)
+├── speedtest_core.py               # Logika biznesowa (wspólna dla CLI/GUI)
 ├── requirements.txt                # Zależności Pythona
 ├── speedtest_config.json.example   # Przykład konfiguracji
 ├── speedtest_config.json          # Konfiguracja użytkownika (ignorowana przez git)
@@ -186,10 +224,38 @@ Warning: High latency (1500 ms) detected - connection may be slow
 ```
 **Rozwiązanie**: To jest informacyjne - wskazuje na problemy z łączem internetowym.
 
+### Problemy z GUI
+
+```
+Error: Unable to start GUI application
+```
+**Rozwiązanie**: Upewnij się, że wszystkie zależności GUI są zainstalowane:
+```bash
+pip install -r requirements.txt
+```
+
+### Kompatybilność z Python 3.13
+
+```
+AttributeError: 'ProcessingStream' object has no attribute 'fileno'
+```
+**Rozwiązanie**: Uruchom skrypt naprawy dla Python 3.13:
+```bash
+python fix_speedtest_py313.py
+```
+
+Lub zastosuj patch manualnie - dodaj `AttributeError` do obsługi wyjątków w `speedtest.py` w linii ~183.
+
 ## 📦 Zależności
 
+### Aplikacja CLI
 - **speedtest-cli** (v2.1.3): Biblioteka do testowania prędkości internetu
 - **Python 3.6+**: Ze wsparciem dla type hints
+
+### Aplikacja GUI (dodatkowo)
+- **Kivy** (v2.3.1): Framework do tworzenia aplikacji multiplatformowych
+- **KivyMD** (v1.2.0): Material Design komponenty dla Kivy
+- **Pillow**: Obsługa obrazów w Kivy
 
 ## 🤝 Rozwój projektu
 
@@ -202,13 +268,16 @@ source ebv/bin/activate
 # Instalacja zależności
 pip install -r requirements.txt
 
-# Testowanie zmian
+# Testowanie zmian CLI
 python sp.py
+
+# Testowanie zmian GUI
+python speedtest_gui.py
 ```
 
 ### Dodawanie nowych funkcji
 
-1. Edytuj `sp.py`
+1. Edytuj odpowiedni plik (`sp.py` dla CLI, `speedtest_gui.py` dla GUI, `speedtest_core.py` dla logiki wspólnej)
 2. Testuj zmiany w różnych scenariuszach sieciowych
 3. Aktualizuj dokumentację w razie potrzeby
 4. Commituj zmiany z opisowymi komunikatami
@@ -220,6 +289,8 @@ Projekt jest dostępny na licencji open source. Szczegóły w pliku LICENSE.
 ## 🔗 Linki użyteczne
 
 - [speedtest-cli documentation](https://pypi.org/project/speedtest-cli/)
+- [Kivy documentation](https://kivy.org/doc/stable/)
+- [KivyMD documentation](https://kivymd.readthedocs.io/)
 - [Python Virtual Environments](https://docs.python.org/3/tutorial/venv.html)
 - [JSON Configuration Format](https://www.json.org/)
 

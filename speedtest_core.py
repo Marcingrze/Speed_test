@@ -32,21 +32,114 @@ class SpeedTestConfig:
         'show_detailed_progress': True
     }
     
+    # Configuration validation rules
+    VALIDATION_RULES = {
+        'bits_to_mbps': (100_000, 10_000_000),  # 100k to 10M
+        'connectivity_check_timeout': (5, 60),   # 5 to 60 seconds
+        'speedtest_timeout': (10, 300),          # 10 to 300 seconds
+        'max_retries': (1, 10),                  # 1 to 10 attempts
+        'retry_delay': (1, 30),                  # 1 to 30 seconds
+        'max_typical_speed_gbps': (0.1, 100),   # 0.1 to 100 Gbps
+        'max_reasonable_speed_gbps': (1, 1000), # 1 to 1000 Gbps
+        'max_typical_ping_ms': (50, 5000),      # 50 to 5000 ms
+        'max_reasonable_ping_ms': (100, 30000), # 100 to 30000 ms
+    }
+    
     def __init__(self, config_file: str = 'speedtest_config.json'):
         self.config_file = Path(config_file)
         self.config = self.DEFAULT_CONFIG.copy()
         self.load_config()
     
+    def _validate_config_value(self, key: str, value: Any) -> Any:
+        """Validate a single configuration value.
+        
+        Args:
+            key: Configuration key
+            value: Value to validate
+            
+        Returns:
+            Validated value
+            
+        Raises:
+            ValueError: If value is invalid
+        """
+        if key == 'show_detailed_progress':
+            if not isinstance(value, bool):
+                raise ValueError(f"'{key}' must be a boolean, got {type(value).__name__}")
+            return value
+        
+        if key in self.VALIDATION_RULES:
+            min_val, max_val = self.VALIDATION_RULES[key]
+            
+            if not isinstance(value, (int, float)):
+                raise ValueError(f"'{key}' must be a number, got {type(value).__name__}")
+            
+            if not (min_val <= value <= max_val):
+                raise ValueError(f"'{key}' must be between {min_val} and {max_val}, got {value}")
+            
+            return value
+        
+        # Unknown key - keep as is but warn
+        return value
+    
+    def _validate_and_update_config(self, file_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate configuration values and return validated config.
+        
+        Args:
+            file_config: Configuration loaded from file
+            
+        Returns:
+            Dictionary of validated configuration values
+        """
+        validated_config = {}
+        validation_errors = []
+        
+        for key, value in file_config.items():
+            if key not in self.DEFAULT_CONFIG:
+                validation_errors.append(f"Unknown configuration key: '{key}'")
+                continue
+                
+            try:
+                validated_value = self._validate_config_value(key, value)
+                validated_config[key] = validated_value
+            except ValueError as e:
+                validation_errors.append(f"Invalid value for '{key}': {e}")
+                # Use default value for invalid entries
+                validated_config[key] = self.DEFAULT_CONFIG[key]
+        
+        # Check logical consistency
+        if 'max_typical_speed_gbps' in validated_config and 'max_reasonable_speed_gbps' in validated_config:
+            if validated_config['max_typical_speed_gbps'] >= validated_config['max_reasonable_speed_gbps']:
+                validation_errors.append("max_typical_speed_gbps must be less than max_reasonable_speed_gbps")
+                validated_config['max_typical_speed_gbps'] = self.DEFAULT_CONFIG['max_typical_speed_gbps']
+        
+        if 'max_typical_ping_ms' in validated_config and 'max_reasonable_ping_ms' in validated_config:
+            if validated_config['max_typical_ping_ms'] >= validated_config['max_reasonable_ping_ms']:
+                validation_errors.append("max_typical_ping_ms must be less than max_reasonable_ping_ms")
+                validated_config['max_typical_ping_ms'] = self.DEFAULT_CONFIG['max_typical_ping_ms']
+        
+        if validation_errors:
+            print("Configuration validation warnings:")
+            for error in validation_errors:
+                print(f"  - {error}")
+        
+        return validated_config
+    
     def load_config(self) -> None:
-        """Load configuration from file or use defaults."""
+        """Load and validate configuration from file or use defaults."""
         if self.config_file.exists():
             try:
                 with open(self.config_file, 'r') as f:
                     file_config = json.load(f)
-                self.config.update(file_config)
-            except (json.JSONDecodeError, IOError):
+                
+                # Validate configuration
+                validated_config = self._validate_and_update_config(file_config)
+                self.config.update(validated_config)
+                
+            except (json.JSONDecodeError, IOError) as e:
+                print(f"Error loading configuration file: {e}")
+                print("Using default configuration.")
                 # Keep defaults if config file is invalid
-                pass
     
     def create_sample_config(self) -> bool:
         """Create a sample configuration file. Returns True if created."""
@@ -100,19 +193,24 @@ class SpeedTestEngine:
     
     def __init__(self, config: SpeedTestConfig = None):
         self.config = config or SpeedTestConfig()
-        self._progress_callback: Optional[Callable[[str, float], None]] = None
+        self._progress_callback: Optional[Callable[[str, Optional[float]], None]] = None
         self._cancel_event = threading.Event()
     
-    def set_progress_callback(self, callback: Callable[[str, float], None]) -> None:
+    def set_progress_callback(self, callback: Callable[[str, Optional[float]], None]) -> None:
         """Set callback function for progress updates.
         
         Args:
-            callback: Function that takes (message: str, progress: float [0-1])
+            callback: Function that takes (message: str, progress: Optional[float] [0-1])
         """
         self._progress_callback = callback
     
-    def _update_progress(self, message: str, progress: float = -1) -> None:
-        """Update progress if callback is set."""
+    def _update_progress(self, message: str, progress: Optional[float] = None) -> None:
+        """Update progress if callback is set.
+        
+        Args:
+            message: Progress message
+            progress: Progress value between 0 and 1, or None for indeterminate
+        """
         if self._progress_callback:
             self._progress_callback(message, progress)
     
@@ -275,7 +373,7 @@ class SpeedTestEngine:
                 if not is_retryable or attempt == max_retries - 1:
                     return result
                 
-                self._update_progress(f"Retrying in {self.config['retry_delay']} seconds...", 0.0)
+                self._update_progress(f"Retrying in {self.config['retry_delay']} seconds...", None)
                 time.sleep(self.config['retry_delay'])
         
         return SpeedTestResult(warnings=["All retry attempts failed"])

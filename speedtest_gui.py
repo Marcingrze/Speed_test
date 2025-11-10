@@ -279,6 +279,10 @@ class SpeedTestMainScreen(MDScreen):
     
     def start_speed_test(self):
         """Start the speed test process."""
+        # Prevent multiple concurrent tests
+        if self.is_testing:
+            return
+            
         # Check network connectivity first
         if not self.engine.check_network_connectivity():
             Snackbar(
@@ -287,6 +291,11 @@ class SpeedTestMainScreen(MDScreen):
                 snackbar_y="10dp",
             ).open()
             return
+        
+        # Cancel any existing update events
+        if self.update_event:
+            self.update_event.cancel()
+            self.update_event = None
         
         # Update UI state
         self.is_testing = True
@@ -315,13 +324,24 @@ class SpeedTestMainScreen(MDScreen):
             ).open()
     
     def update_progress(self, dt):
-        """Update progress and check for results."""
-        # Check for progress updates
-        progress_update = self.async_runner.get_progress()
-        if progress_update:
-            message, progress = progress_update
+        """Update progress and check for results with atomic queue operations."""
+        # Atomically drain progress updates queue to avoid race conditions
+        progress_updates = []
+        try:
+            while True:
+                update = self.async_runner.get_progress()
+                if update is None:
+                    break
+                progress_updates.append(update)
+        except:
+            # Queue is empty or other error
+            pass
+        
+        # Use the latest progress update if any
+        if progress_updates:
+            message, progress = progress_updates[-1]  # Use most recent update
             self.progress_text = message
-            if progress >= 0:
+            if progress is not None and progress >= 0:
                 self.progress_value = int(progress * 100)
         
         # Check for test completion
@@ -368,7 +388,7 @@ class SpeedTestMainScreen(MDScreen):
             ).open()
     
     def reset_ui_state(self):
-        """Reset UI to initial state."""
+        """Reset UI to initial state with proper resource cleanup."""
         self.is_testing = False
         self.button_text = "Start Speed Test"
         self.progress_value = 0
@@ -378,6 +398,15 @@ class SpeedTestMainScreen(MDScreen):
         if self.update_event:
             self.update_event.cancel()
             self.update_event = None
+        
+        # Ensure async runner is properly cleaned up
+        if hasattr(self.async_runner, '_thread') and self.async_runner._thread:
+            if self.async_runner._thread.is_alive():
+                # Give thread a moment to finish gracefully
+                try:
+                    self.async_runner._thread.join(timeout=1.0)
+                except:
+                    pass  # Thread cleanup failed, but continue
         
         # Hide progress card
         self.hide_progress_card()
