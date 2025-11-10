@@ -1,0 +1,458 @@
+#!/usr/bin/env python3
+"""
+Speed Test GUI Application using Kivy
+
+Modern Material Design GUI for internet speed testing application.
+Provides an intuitive interface for running speed tests with real-time progress updates.
+"""
+
+import os
+import sys
+from pathlib import Path
+
+# Set environment variables for Kivy before importing
+os.environ['KIVY_GL_BACKEND'] = 'gl'
+
+from kivymd.app import MDApp
+from kivymd.uix.screen import MDScreen
+from kivymd.uix.boxlayout import MDBoxLayout
+from kivymd.uix.button import MDRaisedButton, MDIconButton
+from kivymd.uix.label import MDLabel
+from kivymd.uix.progressbar import MDProgressBar
+from kivymd.uix.card import MDCard
+from kivymd.uix.toolbar import MDTopAppBar
+from kivymd.uix.dialog import MDDialog
+from kivymd.uix.snackbar import Snackbar
+from kivymd.uix.gridlayout import MDGridLayout
+from kivymd.uix.relativelayout import MDRelativeLayout
+from kivymd.uix.floatlayout import MDFloatLayout
+
+from kivy.clock import Clock
+from kivy.animation import Animation
+from kivy.metrics import dp
+from kivy.lang import Builder
+from kivy.properties import StringProperty, NumericProperty, BooleanProperty
+
+from speedtest_core import SpeedTestEngine, SpeedTestConfig, AsyncSpeedTestRunner
+
+
+KV = '''
+#:import Clock kivy.clock.Clock
+
+<SpeedTestMainScreen>:
+    md_bg_color: app.theme_cls.bg_light
+    
+    MDBoxLayout:
+        orientation: 'vertical'
+        spacing: dp(10)
+        padding: dp(20)
+        
+        MDTopAppBar:
+            title: "Speed Test Tool"
+            md_bg_color: app.theme_cls.primary_color
+            specific_text_color: app.theme_cls.on_primary_color
+            elevation: 1
+            right_action_items: [["cog", lambda x: root.show_settings_dialog()]]
+        
+        # Main content area
+        MDBoxLayout:
+            orientation: 'vertical'
+            spacing: dp(20)
+            adaptive_height: True
+            
+            # Status card
+            MDCard:
+                size_hint_y: None
+                height: dp(120)
+                elevation: 2
+                md_bg_color: app.theme_cls.surface_color
+                padding: dp(20)
+                
+                MDBoxLayout:
+                    orientation: 'vertical'
+                    spacing: dp(10)
+                    
+                    MDLabel:
+                        text: "Network Status"
+                        theme_text_color: "Primary"
+                        font_style: "H6"
+                        size_hint_y: None
+                        height: self.texture_size[1]
+                    
+                    MDLabel:
+                        id: status_label
+                        text: root.status_text
+                        theme_text_color: "Secondary"
+                        size_hint_y: None
+                        height: self.texture_size[1]
+            
+            # Progress section
+            MDCard:
+                id: progress_card
+                size_hint_y: None
+                height: dp(140)
+                elevation: 2
+                md_bg_color: app.theme_cls.surface_color
+                padding: dp(20)
+                opacity: 0
+                
+                MDBoxLayout:
+                    orientation: 'vertical'
+                    spacing: dp(15)
+                    
+                    MDLabel:
+                        id: progress_label
+                        text: root.progress_text
+                        theme_text_color: "Primary"
+                        font_style: "Body1"
+                        size_hint_y: None
+                        height: self.texture_size[1]
+                    
+                    MDProgressBar:
+                        id: progress_bar
+                        value: root.progress_value
+                        color: app.theme_cls.primary_color
+            
+            # Results section
+            MDCard:
+                id: results_card
+                size_hint_y: None
+                height: dp(240)
+                elevation: 2
+                md_bg_color: app.theme_cls.surface_color
+                padding: dp(20)
+                opacity: 0
+                
+                MDGridLayout:
+                    cols: 2
+                    spacing: dp(20)
+                    adaptive_height: True
+                    
+                    # Download
+                    MDBoxLayout:
+                        orientation: 'vertical'
+                        spacing: dp(5)
+                        
+                        MDLabel:
+                            text: "Download"
+                            theme_text_color: "Secondary"
+                            font_style: "Caption"
+                            size_hint_y: None
+                            height: self.texture_size[1]
+                        
+                        MDLabel:
+                            text: f"{root.download_speed:.1f} Mbps"
+                            theme_text_color: "Primary"
+                            font_style: "H4"
+                            size_hint_y: None
+                            height: self.texture_size[1]
+                    
+                    # Upload
+                    MDBoxLayout:
+                        orientation: 'vertical'
+                        spacing: dp(5)
+                        
+                        MDLabel:
+                            text: "Upload"
+                            theme_text_color: "Secondary"
+                            font_style: "Caption"
+                            size_hint_y: None
+                            height: self.texture_size[1]
+                        
+                        MDLabel:
+                            text: f"{root.upload_speed:.1f} Mbps"
+                            theme_text_color: "Primary"
+                            font_style: "H4"
+                            size_hint_y: None
+                            height: self.texture_size[1]
+                    
+                    # Ping
+                    MDBoxLayout:
+                        orientation: 'vertical'
+                        spacing: dp(5)
+                        
+                        MDLabel:
+                            text: "Ping"
+                            theme_text_color: "Secondary"
+                            font_style: "Caption"
+                            size_hint_y: None
+                            height: self.texture_size[1]
+                        
+                        MDLabel:
+                            text: f"{root.ping_latency:.0f} ms"
+                            theme_text_color: "Primary"
+                            font_style: "H4"
+                            size_hint_y: None
+                            height: self.texture_size[1]
+                    
+                    # Server
+                    MDBoxLayout:
+                        orientation: 'vertical'
+                        spacing: dp(5)
+                        
+                        MDLabel:
+                            text: "Server"
+                            theme_text_color: "Secondary"
+                            font_style: "Caption"
+                            size_hint_y: None
+                            height: self.texture_size[1]
+                        
+                        MDLabel:
+                            text: root.server_info
+                            theme_text_color: "Primary"
+                            font_style: "Body2"
+                            size_hint_y: None
+                            height: self.texture_size[1]
+            
+            # Spacer
+            Widget:
+        
+        # Control buttons
+        MDBoxLayout:
+            orientation: 'horizontal'
+            spacing: dp(20)
+            size_hint_y: None
+            height: dp(60)
+            padding: [0, dp(10), 0, 0]
+            
+            MDRaisedButton:
+                id: test_button
+                text: root.button_text
+                disabled: root.is_testing
+                md_bg_color: app.theme_cls.primary_color
+                on_release: root.start_speed_test()
+                size_hint_x: 0.7
+            
+            MDIconButton:
+                icon: "stop"
+                disabled: not root.is_testing
+                on_release: root.cancel_speed_test()
+                theme_icon_color: "Custom"
+                icon_color: app.theme_cls.error_color if not self.disabled else app.theme_cls.disabled_hint_text_color
+                size_hint_x: 0.3
+'''
+
+
+class SpeedTestMainScreen(MDScreen):
+    """Main screen for speed test application."""
+    
+    # Properties for data binding
+    status_text = StringProperty("Ready to test")
+    progress_text = StringProperty("")
+    progress_value = NumericProperty(0)
+    is_testing = BooleanProperty(False)
+    button_text = StringProperty("Start Speed Test")
+    
+    # Results properties
+    download_speed = NumericProperty(0)
+    upload_speed = NumericProperty(0)
+    ping_latency = NumericProperty(0)
+    server_info = StringProperty("No server selected")
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        
+        # Initialize core components
+        self.config = SpeedTestConfig()
+        self.engine = SpeedTestEngine(self.config)
+        self.async_runner = AsyncSpeedTestRunner(self.engine)
+        
+        # UI state
+        self.update_event = None
+        self.settings_dialog = None
+        
+        # Check initial network status
+        Clock.schedule_once(self.check_initial_network, 1)
+    
+    def check_initial_network(self, dt):
+        """Check network connectivity on app start."""
+        if self.engine.check_network_connectivity():
+            self.status_text = "Network connection active"
+        else:
+            self.status_text = "No network connection detected"
+            Snackbar(
+                text="No internet connection detected",
+                snackbar_x="10dp",
+                snackbar_y="10dp",
+                size_hint_x=.5
+            ).open()
+    
+    def start_speed_test(self):
+        """Start the speed test process."""
+        # Check network connectivity first
+        if not self.engine.check_network_connectivity():
+            Snackbar(
+                text="No internet connection detected",
+                snackbar_x="10dp",
+                snackbar_y="10dp",
+            ).open()
+            return
+        
+        # Update UI state
+        self.is_testing = True
+        self.button_text = "Testing..."
+        self.status_text = "Speed test in progress"
+        
+        # Show progress card with animation
+        self.show_progress_card()
+        
+        # Start asynchronous test
+        self.async_runner.start_test()
+        
+        # Schedule progress updates
+        self.update_event = Clock.schedule_interval(self.update_progress, 0.1)
+    
+    def cancel_speed_test(self):
+        """Cancel running speed test."""
+        if self.async_runner.is_running():
+            self.async_runner.cancel_test()
+            self.reset_ui_state()
+            self.status_text = "Test cancelled"
+            Snackbar(
+                text="Speed test cancelled",
+                snackbar_x="10dp",
+                snackbar_y="10dp",
+            ).open()
+    
+    def update_progress(self, dt):
+        """Update progress and check for results."""
+        # Check for progress updates
+        progress_update = self.async_runner.get_progress()
+        if progress_update:
+            message, progress = progress_update
+            self.progress_text = message
+            if progress >= 0:
+                self.progress_value = int(progress * 100)
+        
+        # Check for test completion
+        result = self.async_runner.get_result()
+        if result:
+            self.handle_test_result(result)
+            return False  # Stop the clock event
+        
+        return True  # Continue the clock event
+    
+    def handle_test_result(self, result):
+        """Handle completed test result."""
+        self.reset_ui_state()
+        
+        if result.is_valid:
+            # Update result values
+            self.download_speed = result.download_mbps
+            self.upload_speed = result.upload_mbps
+            self.ping_latency = result.ping_ms
+            self.server_info = result.server_info
+            
+            # Show results with animation
+            self.show_results_card()
+            
+            self.status_text = "Test completed successfully"
+            
+            # Show warnings if any
+            if result.warnings:
+                warning_text = "; ".join(result.warnings)
+                Snackbar(
+                    text=f"Warning: {warning_text}",
+                    snackbar_x="10dp",
+                    snackbar_y="10dp",
+                ).open()
+        else:
+            # Show error
+            error_msg = "; ".join(result.warnings) if result.warnings else "Test failed"
+            self.status_text = f"Test failed: {error_msg}"
+            
+            Snackbar(
+                text=f"Test failed: {error_msg}",
+                snackbar_x="10dp",
+                snackbar_y="10dp",
+            ).open()
+    
+    def reset_ui_state(self):
+        """Reset UI to initial state."""
+        self.is_testing = False
+        self.button_text = "Start Speed Test"
+        self.progress_value = 0
+        self.progress_text = ""
+        
+        # Stop progress updates
+        if self.update_event:
+            self.update_event.cancel()
+            self.update_event = None
+        
+        # Hide progress card
+        self.hide_progress_card()
+    
+    def show_progress_card(self):
+        """Show progress card with animation."""
+        progress_card = self.ids.progress_card
+        anim = Animation(opacity=1, duration=0.3)
+        anim.start(progress_card)
+    
+    def hide_progress_card(self):
+        """Hide progress card with animation."""
+        progress_card = self.ids.progress_card
+        anim = Animation(opacity=0, duration=0.3)
+        anim.start(progress_card)
+    
+    def show_results_card(self):
+        """Show results card with animation."""
+        results_card = self.ids.results_card
+        anim = Animation(opacity=1, duration=0.5)
+        anim.start(results_card)
+    
+    def show_settings_dialog(self):
+        """Show settings configuration dialog."""
+        if not self.settings_dialog:
+            self.settings_dialog = MDDialog(
+                title="Settings",
+                text="Configuration options will be available in future updates.",
+                buttons=[
+                    MDRaisedButton(
+                        text="OK",
+                        on_release=self.close_settings_dialog
+                    )
+                ]
+            )
+        self.settings_dialog.open()
+    
+    def close_settings_dialog(self, *args):
+        """Close settings dialog."""
+        if self.settings_dialog:
+            self.settings_dialog.dismiss()
+
+
+class SpeedTestApp(MDApp):
+    """Main application class."""
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.title = "Speed Test Tool"
+    
+    def build(self):
+        """Build and return the main application screen."""
+        # Set app theme
+        self.theme_cls.theme_style = "Light"
+        self.theme_cls.primary_palette = "Blue"
+        self.theme_cls.accent_palette = "Amber"
+        
+        # Load KV string
+        Builder.load_string(KV)
+        
+        # Return main screen
+        return SpeedTestMainScreen()
+
+
+def main():
+    """Main function to start GUI application."""
+    try:
+        SpeedTestApp().run()
+    except KeyboardInterrupt:
+        print("\nApplication interrupted by user")
+    except Exception as e:
+        print(f"Application error: {e}")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
