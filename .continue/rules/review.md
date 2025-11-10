@@ -4,59 +4,74 @@ invokable: true
 
 Review this code for potential issues, including:
 
-## Network Reliability and Timeout Management
-- Timeout configuration: Verify appropriate timeout values for different network scenarios
-- Connection handling: Check for proper handling of intermittent network failures
-- Retry mechanisms: Consider if operations should retry on transient failures
-- Resource cleanup: Ensure network resources are properly released
-- Error recovery: Verify graceful recovery from network interruptions
+## Configuration and Environment Management
+- Configuration loading: Verify JSON parsing and error handling for malformed config files
+- Default fallbacks: Ensure sensible defaults when configuration keys are missing
+- Environment variable support: Consider if config should support environment overrides
+- Config validation: Check that loaded configuration values are within reasonable bounds
+- File path handling: Verify proper use of Path objects and cross-platform compatibility
+
+## Network Reliability and Retry Logic
+- Retry mechanism effectiveness: Verify that retry logic actually triggers for appropriate errors
+- Timeout configuration: Check if timeout values are appropriate for different network scenarios
+- Exception handling specificity: Ensure network errors are caught at the right level for retries
+- Graceful degradation: Verify behavior when all retry attempts are exhausted
+- Connection state management: Check for proper cleanup of network resources
 
 ## Data Validation and Result Processing
-- Result bounds checking: Verify validation constants are appropriate (10 Gbps max, 10s ping max)
-- Edge case handling: Check behavior with zero speeds, missing data fields
-- Data type safety: Ensure robust handling of unexpected data types from API
-- Unit conversion accuracy: Verify bit-to-Mbps calculations are mathematically correct
-- Warning thresholds: Consider if validation warnings provide sufficient user guidance
+- Configuration-driven validation: Verify validation bounds are properly loaded from config
+- Edge case handling: Test behavior with extreme values (zero speeds, very high ping)
+- Tiered warning system: Check that warning messages are appropriate and actionable
+- Data type safety: Ensure robust handling of unexpected API response formats
+- Result consistency: Verify that validation logic aligns with display formatting
 
-## Error Handling Specificity
-- Exception granularity: Ensure specific exceptions are caught rather than broad catches
-- Error message clarity: Verify error messages provide actionable guidance to users
-- Fallback behavior: Check that failures degrade gracefully with helpful feedback
-- Logging vs output: Consider if error information should be logged vs printed
+## Error Handling and User Experience
+- Error message clarity: Check that error messages provide clear guidance for resolution
+- Progress indication: Verify that progress messages are helpful and accurate
+- Timing information: Check accuracy and usefulness of performance timing displays
+- Interrupt handling: Ensure clean shutdown on user interruption (Ctrl+C)
 - Exit code consistency: Verify proper exit codes for different failure scenarios
 
 ## Code Organization and Maintainability
-- Function cohesion: Ensure each function has a single, clear responsibility
-- Configuration management: Check if hardcoded values should be configurable
-- Type hint accuracy: Verify type annotations match actual usage patterns
-- Documentation completeness: Check that docstrings accurately describe behavior
-- Constant organization: Ensure related constants are logically grouped
+- Function separation: Ensure configuration, network, and display logic are properly separated
+- Global state management: Review use of global config variable and potential alternatives
+- Type hint accuracy: Verify that type annotations match actual function behavior
+- Documentation completeness: Check that all configuration options are documented
+- Command-line interface: Verify argument parsing and help text accuracy
 
-## Performance and User Experience
-- Progress indication: Verify adequate feedback during long-running operations
-- Memory efficiency: Check for potential memory leaks in network operations
-- Interrupt handling: Ensure clean shutdown on user interruption (Ctrl+C)
-- Output formatting: Verify consistent decimal precision and unit display
-- Cross-platform compatibility: Check shebang and path handling across systems
+## Performance and Resource Management
+- Configuration caching: Check if config loading is efficient for repeated calls
+- Memory usage: Review potential memory leaks in network operations or config loading
+- File I/O efficiency: Verify that configuration files are read efficiently
+- Timing accuracy: Check precision and reliability of performance measurements
+- Resource cleanup: Ensure proper cleanup of network connections and file handles
+
+## Security and Input Validation
+- Configuration security: Verify that config files are parsed safely
+- Path traversal: Check for proper validation of file paths
+- Input sanitization: Review handling of data from external speedtest API
+- Privilege requirements: Ensure application runs with minimal required permissions
+- Error information disclosure: Check that error messages don't leak sensitive information
 
 ## Testing and Observability
-- Testability: Consider if functions are structured for easy unit testing
-- Mock points: Identify where external dependencies could be mocked for testing
-- Error scenario coverage: Check if all error paths can be tested
-- Debugging information: Verify sufficient information for troubleshooting issues
+- Configuration testing: Consider how different config combinations can be tested
+- Mock-ability: Check if external dependencies can be easily mocked for testing
+- Error scenario coverage: Verify that all error paths can be triggered for testing
+- Debugging information: Check adequacy of information for troubleshooting
 - Integration testing: Consider real-world network condition testing approaches
 
-## Security and Dependencies
-- Dependency versioning: Verify pinned versions are current and secure
-- Input validation: Check handling of data from external speedtest API
-- Network security: Review connection parameters and timeout settings
-- Privilege requirements: Ensure minimal system permissions needed
-- Virtual environment isolation: Verify proper dependency isolation
+## Enterprise Features and Scalability
+- Configuration management: Check if config system is suitable for enterprise deployment
+- Logging integration: Consider if application should integrate with logging frameworks
+- Monitoring hooks: Check for opportunities to add monitoring or metrics collection
+- Automation compatibility: Verify suitability for CI/CD and automated testing
+- Documentation coverage: Ensure all features are properly documented
 
 Focus particularly on:
-- Network resilience under poor connection conditions
-- Data validation edge cases and boundary conditions
-- User experience during failures and long operations
-- Code maintainability and future extensibility
+- Configuration system robustness and error handling
+- Retry logic effectiveness and network resilience
+- User experience during various failure scenarios
+- Maintainability and extensibility for enterprise use
+- Performance characteristics under different network conditions
 
 Provide specific, actionable feedback with code examples where helpful.
