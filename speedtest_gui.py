@@ -12,6 +12,7 @@ from pathlib import Path
 
 # Set environment variables for Kivy before importing
 os.environ['KIVY_GL_BACKEND'] = 'gl'
+os.environ['KIVY_NO_CONSOLELOG'] = '1'  # Disable console logging to avoid Python 3.13 file descriptor issues
 
 from kivymd.app import MDApp
 from kivymd.uix.screen import MDScreen
@@ -38,10 +39,11 @@ from speedtest_core import SpeedTestEngine, SpeedTestConfig, AsyncSpeedTestRunne
 
 KV = '''
 #:import Clock kivy.clock.Clock
+#:import Widget kivy.uix.widget.Widget
 
 <SpeedTestMainScreen>:
-    md_bg_color: app.theme_cls.bg_light
-    
+    md_bg_color: 0.95, 0.95, 0.95, 1
+
     MDBoxLayout:
         orientation: 'vertical'
         spacing: dp(10)
@@ -50,7 +52,6 @@ KV = '''
         MDTopAppBar:
             title: "Speed Test Tool"
             md_bg_color: app.theme_cls.primary_color
-            specific_text_color: app.theme_cls.on_primary_color
             elevation: 1
             right_action_items: [["cog", lambda x: root.show_settings_dialog()]]
         
@@ -63,146 +64,176 @@ KV = '''
             # Status card
             MDCard:
                 size_hint_y: None
-                height: dp(120)
+                height: dp(100)
                 elevation: 2
-                md_bg_color: app.theme_cls.surface_color
+                md_bg_color: 1, 1, 1, 1
                 padding: dp(20)
-                
+
                 MDBoxLayout:
                     orientation: 'vertical'
                     spacing: dp(10)
-                    
+
                     MDLabel:
                         text: "Network Status"
                         theme_text_color: "Primary"
                         font_style: "H6"
                         size_hint_y: None
-                        height: self.texture_size[1]
-                    
+                        height: dp(30)
+                        bold: True
+
                     MDLabel:
                         id: status_label
                         text: root.status_text
                         theme_text_color: "Secondary"
+                        font_style: "Subtitle1"
                         size_hint_y: None
-                        height: self.texture_size[1]
+                        height: dp(30)
             
             # Progress section
             MDCard:
                 id: progress_card
                 size_hint_y: None
-                height: dp(140)
+                height: dp(120)
                 elevation: 2
-                md_bg_color: app.theme_cls.surface_color
+                md_bg_color: 1, 1, 1, 1
                 padding: dp(20)
                 opacity: 0
-                
+
                 MDBoxLayout:
                     orientation: 'vertical'
                     spacing: dp(15)
-                    
+
                     MDLabel:
                         id: progress_label
                         text: root.progress_text
                         theme_text_color: "Primary"
-                        font_style: "Body1"
+                        font_style: "Subtitle1"
                         size_hint_y: None
-                        height: self.texture_size[1]
-                    
+                        height: dp(30)
+
                     MDProgressBar:
                         id: progress_bar
                         value: root.progress_value
                         color: app.theme_cls.primary_color
+                        size_hint_y: None
+                        height: dp(8)
             
             # Results section
             MDCard:
                 id: results_card
                 size_hint_y: None
-                height: dp(240)
+                height: dp(320)
                 elevation: 2
-                md_bg_color: app.theme_cls.surface_color
+                md_bg_color: 1, 1, 1, 1
                 padding: dp(20)
                 opacity: 0
-                
-                MDGridLayout:
-                    cols: 2
-                    spacing: dp(20)
-                    adaptive_height: True
-                    
+
+                MDBoxLayout:
+                    orientation: 'vertical'
+                    spacing: dp(15)
+
+                    # Title
+                    MDLabel:
+                        text: "Test Results"
+                        theme_text_color: "Primary"
+                        font_style: "H6"
+                        size_hint_y: None
+                        height: dp(30)
+
                     # Download
                     MDBoxLayout:
-                        orientation: 'vertical'
-                        spacing: dp(5)
-                        
+                        orientation: 'horizontal'
+                        spacing: dp(10)
+                        size_hint_y: None
+                        height: dp(50)
+
                         MDLabel:
-                            text: "Download"
+                            text: "Download:"
                             theme_text_color: "Secondary"
-                            font_style: "Caption"
-                            size_hint_y: None
-                            height: self.texture_size[1]
-                        
+                            font_style: "Subtitle1"
+                            size_hint_x: 0.4
+                            halign: "left"
+
                         MDLabel:
-                            text: f"{root.download_speed:.1f} Mbps"
+                            text: root.download_text
                             theme_text_color: "Primary"
-                            font_style: "H4"
-                            size_hint_y: None
-                            height: self.texture_size[1]
-                    
+                            font_style: "H5"
+                            size_hint_x: 0.6
+                            halign: "right"
+
                     # Upload
                     MDBoxLayout:
-                        orientation: 'vertical'
-                        spacing: dp(5)
-                        
+                        orientation: 'horizontal'
+                        spacing: dp(10)
+                        size_hint_y: None
+                        height: dp(50)
+
                         MDLabel:
-                            text: "Upload"
+                            text: "Upload:"
                             theme_text_color: "Secondary"
-                            font_style: "Caption"
-                            size_hint_y: None
-                            height: self.texture_size[1]
-                        
+                            font_style: "Subtitle1"
+                            size_hint_x: 0.4
+                            halign: "left"
+
                         MDLabel:
-                            text: f"{root.upload_speed:.1f} Mbps"
+                            text: root.upload_text
                             theme_text_color: "Primary"
-                            font_style: "H4"
-                            size_hint_y: None
-                            height: self.texture_size[1]
-                    
+                            font_style: "H5"
+                            size_hint_x: 0.6
+                            halign: "right"
+
                     # Ping
                     MDBoxLayout:
-                        orientation: 'vertical'
-                        spacing: dp(5)
-                        
+                        orientation: 'horizontal'
+                        spacing: dp(10)
+                        size_hint_y: None
+                        height: dp(50)
+
                         MDLabel:
-                            text: "Ping"
+                            text: "Ping:"
                             theme_text_color: "Secondary"
-                            font_style: "Caption"
-                            size_hint_y: None
-                            height: self.texture_size[1]
-                        
+                            font_style: "Subtitle1"
+                            size_hint_x: 0.4
+                            halign: "left"
+
                         MDLabel:
-                            text: f"{root.ping_latency:.0f} ms"
+                            text: root.ping_text
                             theme_text_color: "Primary"
-                            font_style: "H4"
-                            size_hint_y: None
-                            height: self.texture_size[1]
-                    
+                            font_style: "H5"
+                            size_hint_x: 0.6
+                            halign: "right"
+
+                    # Separator
+                    Widget:
+                        size_hint_y: None
+                        height: dp(1)
+                        canvas:
+                            Color:
+                                rgba: 0.8, 0.8, 0.8, 0.5
+                            Rectangle:
+                                pos: self.pos
+                                size: self.size
+
                     # Server
                     MDBoxLayout:
                         orientation: 'vertical'
                         spacing: dp(5)
-                        
+                        size_hint_y: None
+                        height: dp(50)
+
                         MDLabel:
                             text: "Server"
                             theme_text_color: "Secondary"
                             font_style: "Caption"
                             size_hint_y: None
-                            height: self.texture_size[1]
-                        
+                            height: dp(20)
+
                         MDLabel:
                             text: root.server_info
                             theme_text_color: "Primary"
                             font_style: "Body2"
                             size_hint_y: None
-                            height: self.texture_size[1]
+                            height: dp(25)
             
             # Spacer
             Widget:
@@ -210,26 +241,26 @@ KV = '''
         # Control buttons
         MDBoxLayout:
             orientation: 'horizontal'
-            spacing: dp(20)
+            spacing: dp(15)
             size_hint_y: None
-            height: dp(60)
-            padding: [0, dp(10), 0, 0]
-            
+            height: dp(56)
+            padding: [0, dp(10), 0, dp(10)]
+
             MDRaisedButton:
                 id: test_button
                 text: root.button_text
                 disabled: root.is_testing
                 md_bg_color: app.theme_cls.primary_color
                 on_release: root.start_speed_test()
-                size_hint_x: 0.7
-            
-            MDIconButton:
-                icon: "stop"
+                size_hint_x: 0.75
+                font_size: "16sp"
+
+            MDRaisedButton:
+                text: "Stop"
                 disabled: not root.is_testing
                 on_release: root.cancel_speed_test()
-                theme_icon_color: "Custom"
-                icon_color: app.theme_cls.error_color if not self.disabled else app.theme_cls.disabled_hint_text_color
-                size_hint_x: 0.3
+                md_bg_color: (0.95, 0.26, 0.21, 1) if not self.disabled else (0.7, 0.7, 0.7, 1)
+                size_hint_x: 0.25
 '''
 
 
@@ -248,6 +279,11 @@ class SpeedTestMainScreen(MDScreen):
     upload_speed = NumericProperty(0)
     ping_latency = NumericProperty(0)
     server_info = StringProperty("No server selected")
+
+    # Formatted display properties
+    download_text = StringProperty("0.0 Mbps")
+    upload_text = StringProperty("0.0 Mbps")
+    ping_text = StringProperty("0 ms")
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -355,19 +391,24 @@ class SpeedTestMainScreen(MDScreen):
     def handle_test_result(self, result):
         """Handle completed test result."""
         self.reset_ui_state()
-        
+
         if result.is_valid:
             # Update result values
             self.download_speed = result.download_mbps
             self.upload_speed = result.upload_mbps
             self.ping_latency = result.ping_ms
             self.server_info = result.server_info
-            
+
+            # Update formatted display text
+            self.download_text = f"{result.download_mbps:.1f} Mbps"
+            self.upload_text = f"{result.upload_mbps:.1f} Mbps"
+            self.ping_text = f"{result.ping_ms:.0f} ms"
+
             # Show results with animation
             self.show_results_card()
-            
+
             self.status_text = "Test completed successfully"
-            
+
             # Show warnings if any
             if result.warnings:
                 warning_text = "; ".join(result.warnings)
@@ -380,7 +421,7 @@ class SpeedTestMainScreen(MDScreen):
             # Show error
             error_msg = "; ".join(result.warnings) if result.warnings else "Test failed"
             self.status_text = f"Test failed: {error_msg}"
-            
+
             Snackbar(
                 text=f"Test failed: {error_msg}",
                 snackbar_x="10dp",
@@ -463,10 +504,16 @@ class SpeedTestApp(MDApp):
         self.theme_cls.theme_style = "Light"
         self.theme_cls.primary_palette = "Blue"
         self.theme_cls.accent_palette = "Amber"
-        
+
+        # Set window size
+        from kivy.core.window import Window
+        Window.size = (500, 700)
+        Window.minimum_width = 400
+        Window.minimum_height = 600
+
         # Load KV string
         Builder.load_string(KV)
-        
+
         # Return main screen
         return SpeedTestMainScreen()
 

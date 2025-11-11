@@ -74,7 +74,8 @@ def create_tkinter_gui():
             
             # Status
             ttk.Label(main_frame, text="Status:").grid(row=1, column=0, sticky=tk.W, pady=5)
-            self.status_var = tk.StringVar(value="Ready")\n            self.status_label = ttk.Label(main_frame, textvariable=self.status_var)
+            self.status_var = tk.StringVar(value="Ready")
+            self.status_label = ttk.Label(main_frame, textvariable=self.status_var)
             self.status_label.grid(row=1, column=1, sticky=tk.W, pady=5)
             
             # Progress
