@@ -5,58 +5,53 @@ invokable: true
 Review this code for potential issues, including:
 
 Python, dependencies, and environment
-- Python/version compatibility: verify requirements vs supported Python. Pillow 12 and Kivy 2.3.1 may require newer Python than 3.6; ensure docs and Makefile reflect actual minimum version
-- speedtest-cli 2.1.3 on Python 3.13: confirm AttributeError fileno() handling and Kivy env vars (KIVY_NO_CONSOLELOG) are sufficient; ensure fix_speedtest_py313.py guidance is current
-- Optional dependency handling: graceful failure if Kivy/KivyMD are missing when running CLI-only; avoid import-time crashes
-- Pinning policy: check if pinned versions are still maintained and compatible across platforms
+- Version compatibility: requirements pin recent libs (e.g., Pillow 12.0.0, Kivy 2.3.1) while docs/installer mention Python 3.6+. Verify real minimum Python version and align README/INSTALLER/installer checks.
+- speedtest-cli 2.1.3 on Python 3.13: confirm AttributeError fileno() mitigation (KIVY_NO_CONSOLELOG, try/except in core) and the fix_speedtest_py313.py guidance is accurate and referenced where needed.
+- Optional GUI deps: ensure CLI paths don’t import Kivy/KivyMD inadvertently; graceful messages if GUI deps missing.
+- Pinning policy: evaluate if pins are necessary and cross-platform installable; consider constraints files.
 
 Error handling, retries, and cancellation
-- Network error handling: coverage for speedtest.SpeedtestException, ConfigRetrievalError, NoMatchedServers, timeouts, and OS/network errors
-- Retry strategy: consider exponential backoff or jitter instead of fixed retry_delay for transient failures; ensure max_retries bounds are respected
-- Cancellation path: when cancelled, run_speed_test_with_retry returns a default, invalid result. Ensure callers can distinguish cancellation vs failure and surface appropriate UX
-- Broad AttributeError excepts: confirm they won’t mask unrelated bugs beyond Python 3.13 fileno cases
+- Retry strategy in SpeedTestEngine.run_speed_test_with_retry: consider exponential backoff/jitter and clearer classification of retryable errors.
+- Distinguish cancellation vs failure: currently cancellation yields an invalid result; propose a cancelled flag or exception to let UI/CLI show correct UX.
+- Exception breadth: broad AttributeError except may mask unrelated bugs; tighten or log extra context.
 
 Concurrency, threading, and GUI responsiveness
-- Thread safety: verify access to progress callback under lock; ensure no deadlocks
-- Queue capacity: AsyncSpeedTestRunner uses bounded queues (progress maxsize=20). Ensure producers won’t block indefinitely; consider non-blocking put with drop-old strategy if needed
-- Kivy Clock events: confirm Clock.schedule_interval is always unscheduled on completion/cancel to avoid leaks
-- Animation/dialog lifecycle: verify dialogs are dismissed and references cleared to prevent memory leaks
+- Async progress queue backpressure: AsyncSpeedTestRunner uses Queue(maxsize=20) and blocking put. If full, producer blocks test thread. Consider put_nowait with queue.Full handling (drop oldest/newest) or unbounded SimpleQueue.
+- Progress callback locking: verify no deadlocks and minimal work in callback.
+- Kivy Clock events and dialogs: ensure events are always unscheduled on complete/cancel; confirm dialogs are dismissed and references cleared.
 
-Core logic and result validation
-- Validation thresholds: sanity, typical vs reasonable ranges; confirm units consistency (bits vs Mbps) and division by config['bits_to_mbps]
-- Handling extreme or negative values: ensure invalid structures return actionable warnings
-- Connectivity pre-check: balance timeout and user experience; confirm it avoids blocking the GUI thread
+Core logic and validation
+- Units consistency: bits vs Mbps conversion via config['bits_to_mbps']; verify correctness across all uses.
+- Validation thresholds: sanity/typical/reasonable ranges—confirm defaults are sensible and warnings actionable.
+- Connectivity check: timeout balance for UX; avoid blocking GUI thread.
 
 Data persistence and performance
-- SQLite setup: WAL mode and busy timeout are set; validate correct use and close semantics; consider connection reuse or context managers everywhere
-- Indexes: idx_timestamp and idx_test_date exist; confirm queries use them (especially date range)
-- Data types: is_valid stored as BOOLEAN; verify cross-platform truthiness and query filters
-- Export scalability: streaming large exports (CSV/JSON) and proper encoding; consider newline handling on Windows
-- Migration/compatibility: no schema versioning; suggest lightweight migrations for future changes
+- SQLite usage: WAL and busy_timeout are set—good. Consider connection reuse if performance becomes an issue; ensure proper closing on exceptions.
+- Indexes: you have idx_timestamp and idx_test_date, but date-range queries use timestamp; verify idx_test_date is needed or add test_date queries that benefit.
+- Export scalability: CSV/JSON export reads all records when days is None; consider streaming/iterating for very large datasets.
 
 Configuration and validation
-- Consistency between SpeedTestConfig.VALIDATION_RULES and ConfigValidator.SCHEMA; ensure no drift (there is syncing code—verify it’s effective)
-- File locking: fcntl shared locks on Unix; confirm safe behavior on Windows where msvcrt is imported but not used; consider advisory locking alternative on Windows
-- Error messaging: when falling back to defaults, ensure warnings are user-actionable and not too verbose
+- Keep ConfigValidator.SCHEMA and SpeedTestConfig.VALIDATION_RULES in sync (there is syncing code—validate coverage of all keys and ranges).
+- File locking: fcntl shared locks on Unix only; on Windows msvcrt is imported but unused—consider a Windows-safe approach or document behavior.
+- Error messaging: on invalid config, ensure warnings are concise and actionable.
 
 Scheduler and long-running reliability
-- Monotonic time: confirm consistent use for interval scheduling; check for clock drift edge cases
-- Graceful shutdown: signal handlers and thread joins; ensure no orphaned threads and predictable exit
-- Backoff when offline: consider using network_retry_delay between failed connectivity checks
+- Monotonic scheduling is used—good. When offline, consider using network_retry_delay between checks to avoid tight loops.
+- Graceful shutdown: signals, thread joins, and resource cleanup—verify no orphaned threads and predictable shutdown.
+- Logging: replace prints/emojis with logging module levels for services.
 
-CLI/UX and logging
-- CLI sp.py minimal flags: verify outputs and exit codes; consider adding verbosity and JSON output for automation
-- Logging vs print: recommend a logging framework with levels for production use and headless environments
-- Internationalization: README is in Polish; ensure CLI/UX messages are consistent with target audience
+CLI/UX and documentation
+- CLI flags are minimal; consider adding JSON output and verbosity levels for automation.
+- Internationalization: README is Polish while code messages are English+emojis; align language and tone for target users or provide i18n.
+- Consistency: Makefile lint ignores E501 while also setting max-line-length—clarify lint rules.
 
-Security and data integrity
-- File path and permissions: ensure speedtest_history.db and config locations are writable in service mode; Makefile’s systemd service uses user “speedtest” (ensure user/group and dirs exist)
-- Input validation: sanitize user-provided paths/args for export commands
-- Data integrity: ensure atomic writes for config and exports; consider fsync where necessary
+Security and operations
+- Installer uses os.geteuid (Linux/Unix only); clarify Windows support or guard accordingly.
+- Service setup: systemd unit assumes user/group "speedtest" and writable working dir; document/user creation and file permissions for DB/config paths.
+- PATH instructions typo in install.py help ("~/. local/bin"): fix spacing.
 
-Testing and maintainability
-- Tests should be network-optional; verify test_installation.py supports --no-network paths without real HTTP calls
-- Add unit tests for validation, retry logic, cancellation, and storage
-- Consider CI to run lint/format/tests across Linux/macOS/Windows
+Testing and CI
+- Ensure tests can run offline (test_installation.py has --no-network) and add unit tests for validation, retry/backoff, cancellation, and storage.
+- Consider adding CI to run lint/format/tests on Linux/macOS/Windows with different Python versions.
 
 Provide specific, actionable feedback for improvements.

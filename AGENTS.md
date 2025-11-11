@@ -13,11 +13,12 @@
   - Error-tolerant operation with retries, validation, and actionable feedback
   - Historical analysis, reporting, and automation
 - Key technologies used
-  - Python 3.6+
+  - Python 3.6+ (GUI stack generally runs best on Python 3.8+)
   - speedtest-cli 2.1.3
   - Kivy 2.3.1 and KivyMD 1.2.0 (GUI)
   - SQLite (built-in) for persistent storage
-  - JSON configuration with validation
+  - requests for ancillary HTTP operations (via speedtest-cli)
+  - JSON configuration with validation and Unix file locking
   - Threading for async execution and responsive GUI
 
 ## Architecture Overview
@@ -27,7 +28,7 @@
   - GUI (speedtest_gui.py) provides a Material Design interface using Kivy/KivyMD, running tests in background threads and reflecting progress via callbacks.
   - Scheduler (scheduled_testing.py) runs tests periodically in a background thread, saving results to SQLite and reporting status.
   - Storage (test_results_storage.py) encapsulates SQLite persistence, statistics, and export features.
-  - Configuration (speedtest_core.SpeedTestConfig and config_validator.py) loads, validates, and documents configuration, including file locking on Unix.
+  - Configuration (speedtest_core.SpeedTestConfig and config_validator.py) loads, validates, and documents configuration, including shared file locking on Unix.
 - Main components and their relationships
   - SpeedTestConfig -> SpeedTestEngine -> SpeedTestResult
   - AsyncSpeedTestRunner wraps SpeedTestEngine for GUI background operation
@@ -45,9 +46,10 @@
 
 ## Directory Structure
 - Important directories and their purposes
-  - .continue/      Custom Continue CLI rules (slash commands)
-  - .claude/        Claude-specific agent settings (optional)
-  - ebv/            Python virtual environment (project-local; optional)
+  - .continue/      Custom Continue CLI rules (slash commands like /review)
+  - backups/        Optional backups created via Makefile targets
+  - speedtest_env/  Project-local virtualenv created by Makefile/installer
+  - ebv/            Alternate virtualenv mentioned in docs (optional)
 - Key files and configuration
   - speedtest_core.py               Core engine, config, async runner, validation
   - sp.py                           CLI entry point delegating to core
@@ -68,45 +70,37 @@
   - EXECUTABLE_SETUP.md             Executable setup instructions
 - Entry points and main modules
   - CLI: python sp.py
-  - GUI: python speedtest_gui.py (uses Kivy/KivyMD)
+  - GUI: python speedtest_gui.py
   - Scheduler: python scheduled_testing.py
   - Storage management: python test_results_storage.py [stats|export|info|cleanup]
   - Config validation: python config_validator.py [--schema|<config.json>]
 
 ## Development Workflow
-- Development environment setup
-  - Using existing venv (if ebv/ exists)
-    - source ebv/bin/activate
-    - pip install -r requirements.txt
-  - Or via Makefile (creates speedtest_env virtualenv)
-    - make setup
-    - make dev-setup  (adds pytest, black, flake8, mypy)
 - How to build/run the project
-  - CLI
-    - python sp.py
-    - python sp.py --create-config  (writes speedtest_config.json)
-  - GUI
-    - python speedtest_gui.py
-  - Scheduler
-    - python scheduled_testing.py --interval 60
-    - python scheduled_testing.py --immediate
-    - python scheduled_testing.py --stats
-  - Storage and exports
-    - python test_results_storage.py stats --days 30
-    - python test_results_storage.py export csv results.csv --days 7
-    - python test_results_storage.py export json results.json
-    - python test_results_storage.py info
+  - Using Makefile
+    - make setup (create venv and install deps into speedtest_env)
+    - make run-cli / make run-gui / make run-scheduler
+    - make install or python install.py [--user] to generate executables
+  - Manually
+    - python3 -m venv speedtest_env; source speedtest_env/bin/activate
+    - pip install -r requirements.txt
+    - python sp.py (CLI), python speedtest_gui.py (GUI), python scheduled_testing.py (scheduler)
 - Testing approach
-  - Configuration validation tests: python test_config_validation.py
-  - End-to-end install tests: python test_installation.py [--quick|--no-network]
+  - Configuration validation and installer tests are provided
+    - python test_config_validation.py
+    - python test_installation.py [--quick|--no-network]
+    - python test_results_storage.py
   - Manual CLI/GUI testing under varying network conditions
   - Scheduler smoke tests with short intervals in a controlled environment
+- Development environment setup
+  - make dev-setup installs pytest, black, flake8, mypy into the local venv
+  - requirements.txt pins runtime deps: speedtest-cli, Kivy/KivyMD, Pillow, requests
+  - Note: On Python 3.13, apply fix_speedtest_py313.py or rely on built-in AttributeError handling in core and disabled Kivy console logging
 - Lint and format commands
-  - make lint     (flake8 with max line length and ignores)
-  - make format   (black with configured line length)
-  - Optional: make dev-setup to install pytest/flake8/black/mypy in local venv
+  - make lint (flake8 with configured max line length and ignores)
+  - make format (black with configured line length)
 
 Notes and gotchas
-- speedtest-cli 2.1.3 requires a small patch for Python 3.13 environments; see fix_speedtest_py313.py and README for details. The GUI also disables Kivy console logging to avoid file descriptor issues on Python 3.13.
+- speedtest-cli 2.1.3 has a known fileno() issue under Python 3.13 in some environments. The GUI sets KIVY_NO_CONSOLELOG=1 to mitigate, and the core handles AttributeError; fix_speedtest_py313.py provides a patch helper as well.
 - On Unix, configuration file reads are protected by a shared flock; on Windows, the code avoids fcntl. SQLite uses WAL mode and a busy timeout to improve concurrent access.
 - The Makefile virtual environment directory (speedtest_env) differs from the repo’s ebv/ directory used in docs; you may use either approach consistently in your setup.
