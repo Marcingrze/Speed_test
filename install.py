@@ -118,8 +118,8 @@ class SpeedTestInstaller:
                 with open(script_path, 'w') as f:
                     f.write(script_content)
                 
-                # Make executable
-                script_path.chmod(script_path.stat().st_mode | stat.S_IEXEC)
+                # Make executable for all users (755)
+                script_path.chmod(stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
                 print(f"✓ Created {script_name}")
                 
             except (IOError, OSError) as e:

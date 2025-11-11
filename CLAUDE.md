@@ -4,175 +4,126 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Internet speed testing tool with both CLI and GUI interfaces. Uses speedtest.net to measure download/upload speeds and ping latency, with advanced features including scheduled testing, result storage, and data export.
+Internet speed testing tool with CLI and GUI interfaces. Uses speedtest.net to measure download/upload speeds and ping latency. Includes scheduled testing, SQLite result storage, and data export capabilities.
 
-## Environment Setup
-
-The project uses a Python virtual environment. Use either the existing `ebv/` or the installer's `speedtest_env/`:
+## Quick Start
 
 ```bash
-# For development with existing environment
-source ebv/bin/activate
-pip install -r requirements.txt
+# Setup
+make setup          # Create venv and install dependencies
+make dev-setup      # Add pytest, black, flake8, mypy
 
-# OR use Makefile for complete setup
-make setup          # Creates speedtest_env/ and installs dependencies
-make dev-setup      # Adds development tools (pytest, black, flake8, mypy)
+# Run
+make run-cli        # CLI interface
+make run-gui        # GUI interface
+make run-scheduler  # Background scheduler
 
-# Install as executable commands (creates scripts in /usr/local/bin or ~/.local/bin)
-make install        # System-wide (requires sudo)
-make install-user   # Current user only
-```
-
-## Running the Application
-
-```bash
-# Development mode (activate venv first: source ebv/bin/activate)
-python sp.py                              # CLI
-python sp.py --create-config             # Create config file
-python speedtest_gui.py                  # GUI
-python scheduled_testing.py --interval 60 # Scheduler
-
-# OR use Makefile shortcuts (handles venv automatically)
-make run-cli
-make run-gui
-make run-scheduler
-make config                               # Create speedtest_config.json
-
-# OR use installed commands (after make install)
-speedtest-cli                             # CLI test
-speedtest-gui                             # GUI interface
-speedtest-scheduler --immediate           # Single scheduled test
-speedtest-scheduler --interval 30         # Test every 30 minutes
-speedtest-scheduler --stats --days 7      # Show statistics
-speedtest-storage export csv results.csv  # Export to CSV
+# Test & Quality
+make test           # Quick functionality tests
+make test-full      # Complete test suite
+make lint           # Run flake8
+make format         # Format with black
 ```
 
 ## Architecture
 
-### Core Components
+**Multi-Interface Architecture**: Business logic is separated from UI, allowing CLI, GUI, and scheduler to share the same testing engine.
 
-**Multi-Interface Architecture**: The project separates business logic from UI, allowing different frontends (CLI, GUI) to share the same testing engine.
-
-- **speedtest_core.py**: Core business logic module
-  - `SpeedTestConfig`: Configuration management with validation
-  - `SpeedTestEngine`: Main testing engine with retry logic and error handling
-  - `SpeedTestResult`: Data class for test results
-  - `AsyncSpeedTestRunner`: Threaded runner for GUI integration
-
-- **sp.py**: CLI frontend
-  - Command-line interface with progress indicators
-  - Uses SpeedTestEngine from speedtest_core
-  - Supports `--create-config` flag to generate speedtest_config.json
-
-- **speedtest_gui.py**: KivyMD GUI frontend
-  - Material Design interface with real-time progress updates
-  - Asynchronous testing via AsyncSpeedTestRunner
-  - Progress callbacks for UI updates
-  - Thread-safe operations
-
-### Storage & Scheduling
-
-- **test_results_storage.py**: SQLite-based persistence
-  - Stores historical test results
-  - Export to CSV/JSON
-  - Statistical analysis (averages, trends)
-
-- **scheduled_testing.py**: Background test scheduler
-  - Runs tests at configurable intervals
-  - Integrates with TestResultStorage
-  - Can run as daemon
-
-### Utilities
-
-- **config_validator.py**: Configuration validation logic
-- **test_config_validation.py**: Test suite for config validation
-- **fix_speedtest_py313.py**: Python 3.13 compatibility patch for speedtest-cli
-
-## Configuration
-
-Configuration is managed via `speedtest_config.json`:
-
-```json
-{
-  "bits_to_mbps": 1000000,
-  "connectivity_check_timeout": 10,
-  "speedtest_timeout": 60,
-  "max_retries": 3,
-  "retry_delay": 2,
-  "max_typical_speed_gbps": 1,
-  "max_reasonable_speed_gbps": 10,
-  "max_typical_ping_ms": 1000,
-  "max_reasonable_ping_ms": 10000,
-  "show_detailed_progress": true
-}
+### Core Flow
+```
+SpeedTestConfig → SpeedTestEngine → SpeedTestResult
+                       ↓
+      ┌────────────────┼────────────────┐
+      ↓                ↓                ↓
+    CLI (sp.py)    GUI (async)    Scheduler
+                       ↓                ↓
+                 Progress        TestResultStorage
+                 Callbacks           (SQLite)
 ```
 
-- All configuration keys have validation rules defined in `SpeedTestConfig.VALIDATION_RULES`
-- If config file is missing, defaults from `DEFAULT_CONFIG` are used
-- CLI can create example config with `python sp.py --create-config`
+### Key Modules
 
-## Key Dependencies
+**speedtest_core.py** - Core business logic (UI-agnostic)
+- `SpeedTestConfig`: Configuration with validation rules and file locking (Unix fcntl)
+- `SpeedTestEngine`: Main engine with retry logic, connectivity checks, result validation
+- `SpeedTestResult`: Result data class with warnings
+- `AsyncSpeedTestRunner`: Threaded runner for GUI with cancellation support
 
-- **speedtest-cli==2.1.3**: Core testing library (requires Python 3.13 patch - see below)
-- **Kivy==2.3.1**: Multi-platform GUI framework
-- **KivyMD==1.2.0**: Material Design components for Kivy
-- **Pillow==12.0.0**: Image processing for Kivy
+**sp.py** - CLI frontend (lightweight wrapper)
+- Delegates all logic to SpeedTestEngine
+- Only handles `--create-config` flag and result display
 
-## Python 3.13 Compatibility
+**speedtest_gui.py** - KivyMD GUI
+- Material Design interface with real-time progress
+- Runs tests in background thread via AsyncSpeedTestRunner
+- Uses progress callbacks and Kivy Clock for UI updates
 
-The speedtest-cli library has a compatibility issue with Python 3.13 in Kivy environments (AttributeError on sys.stderr.fileno()).
+**test_results_storage.py** - SQLite persistence
+- WAL mode with busy timeout for concurrent access
+- Indexed timestamp/date columns for performance
+- Export to CSV/JSON, statistics queries
 
-**Fix**: Run the patch script once after installing dependencies:
-```bash
-python fix_speedtest_py313.py
-```
+**scheduled_testing.py** - Background scheduler
+- Monotonic time-based interval scheduling
+- Graceful shutdown with signal handlers
+- Persists results via TestResultStorage
 
-This patches the speedtest module to catch AttributeError in addition to OSError.
+## Configuration System
 
-## Data Flow
+Config loaded from `speedtest_config.json` (falls back to defaults if missing):
+- Validation rules defined in `SpeedTestConfig.VALIDATION_RULES`
+- Config must stay in sync with `config_validator.py` schema (uses import to avoid drift)
+- File locking via `fcntl` on Unix (shared locks during reads)
+- Create config: `python sp.py --create-config`
 
-1. **CLI Testing**: sp.py → SpeedTestEngine → speedtest-cli → Results displayed
-2. **GUI Testing**: speedtest_gui.py → AsyncSpeedTestRunner (thread) → SpeedTestEngine → Progress callbacks → UI updates
-3. **Scheduled Testing**: scheduled_testing.py → SpeedTestEngine → TestResultStorage (SQLite)
+Key settings: timeouts, retry logic, validation thresholds (typical vs reasonable speeds/pings)
 
-## Testing & Development
+## Dependencies
 
-```bash
-# Run functionality tests
-make test              # Basic tests (quick)
-make test-full         # Complete test suite
-make test-offline      # Tests without network
-python test_config_validation.py  # Config validation tests
-python test_installation.py       # Installation verification
+- **speedtest-cli 2.1.3**: Requires Python 3.13 patch via `fix_speedtest_py313.py`
+- **Kivy 2.3.1 + KivyMD 1.2.0**: GUI framework (Material Design)
+- **Python**: Pillow 12 and Kivy require 3.8+, not 3.6 (docs may be outdated)
 
-# Code quality
-make lint              # Run flake8 linter
-make format            # Format with black
+## Critical Implementation Patterns
 
-# Database operations
-sqlite3 speedtest_history.db "SELECT * FROM test_results ORDER BY timestamp DESC LIMIT 10;"
-speedtest-storage stats --days 30  # Statistics
-speedtest-storage export csv data.csv  # Export data
+### Threading & Concurrency
+- GUI runs tests in background via `AsyncSpeedTestRunner`
+- Progress updates use bounded queues (maxsize=20) to prevent blocking
+- Kivy Clock events schedule UI updates on main thread
+- SQLite uses WAL mode + busy timeout (5s) for concurrent access
 
-# Maintenance
-make clean             # Remove __pycache__ and temp files
-make backup            # Backup config and database
-make restore           # Restore from latest backup
-make update            # Update dependencies
-```
+### Error Handling & Retries
+- Retry logic: Fixed delay between attempts (consider exponential backoff in future)
+- Cancellation: Returns invalid result; callers should check `is_valid`
+- Network errors categorized: connectivity, timeout, validation failures
+- Broad `AttributeError` catching for Python 3.13 fileno() issues
 
-## Important Implementation Details
+### Result Validation
+- Two-tier thresholds: typical (warn) vs reasonable (error)
+- Validates: speed units (bits→Mbps conversion), ping ranges, negative values
+- Warnings attached to results for display in UI
 
-- **Thread Safety**: GUI uses threading to prevent UI blocking during tests. AsyncSpeedTestRunner manages the worker thread and provides callbacks for progress updates.
-- **Error Handling**: SpeedTestEngine implements retry logic with configurable attempts and delays. All errors are categorized (network, timeout, validation).
-- **Result Validation**: Results are validated against configured thresholds (max_typical_speed_gbps, max_reasonable_speed_gbps, etc.) with warnings for suspicious values.
-- **Progress Tracking**: Both CLI and GUI receive progress updates through callbacks with stage information (connecting, downloading, uploading).
-- **Installation System**: The `install.py` script creates bash wrapper scripts that activate the virtual environment and run the Python applications. These wrappers are placed in `/usr/local/bin` (system) or `~/.local/bin` (user mode).
-- **File Locking**: Uses fcntl (Unix) or msvcrt (Windows) for safe concurrent access to shared resources.
+### File Operations
+- Config: fcntl shared locks on Unix (Windows msvcrt imported but not used)
+- SQLite: WAL mode, indexed queries, connection reuse via context managers
+- Exports: Handle newlines/encoding for cross-platform CSV/JSON
 
-## Known Issues
+## Python 3.13 Compatibility Issue
 
-- **Python 3.13 Compatibility**: speedtest-cli has an AttributeError with sys.stderr.fileno() in Kivy environments. Run `python fix_speedtest_py313.py` to patch the module after installation.
-- **File Permissions**: Some files may be owned by root, others by marcin. Be aware of permission issues when editing or running commands.
-- **Virtual Environment**: The codebase references both `ebv/` (existing) and `speedtest_env/` (created by installer). Both are valid - use whichever exists in your environment.
+**Problem**: speedtest-cli raises `AttributeError` on `sys.stderr.fileno()` in Kivy environments
+**Fix**: Run `python fix_speedtest_py313.py` after installing dependencies
+**GUI Workaround**: Sets `KIVY_NO_CONSOLELOG=1` to disable console logging
+
+## Code Review Guidelines
+
+This project includes custom slash commands for Continue CLI and Claude Code:
+- **Continue**: `/review` command defined in `.continue/rules/review.md`
+- **Claude Code**: `python-code-reviewer` agent in `.claude/agents/`
+
+When reviewing code, focus on:
+- Thread safety (GUI callbacks, queue handling, Clock scheduling)
+- Config validation consistency between `SpeedTestConfig.VALIDATION_RULES` and `config_validator.py`
+- SQLite connection management and index usage
+- Python 3.13 compatibility (AttributeError handling)
+- Network retry strategy and cancellation UX
+- Resource cleanup (connections, file handles, threads)
