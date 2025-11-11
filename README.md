@@ -57,6 +57,12 @@ python sp.py
 python sp.py --create-config
 ```
 
+### Jak działa CLI
+- sp.py jest lekką nakładką, która w całości deleguje logikę do speedtest_core.
+- Konfiguracja jest ładowana i walidowana przez SpeedTestConfig.
+- Pomiar (z retry i walidacją) wykonuje SpeedTestEngine.
+- sp.py tylko obsługuje flagę --create-config i wyświetla wyniki.
+
 **Aplikacja graficzna (GUI):**
 ```bash
 # Uruchom interfejs graficzny
@@ -126,17 +132,8 @@ $ python sp.py
 
 Internet Speed Test Tool
 -------------------------
-Using default configuration (create speedtest_config.json to customize).
 Checking network connectivity...
 Network connection detected.
-Initializing speed test...
-Fetching server list...
-Selecting best server...
-Using server: Orange Polska (Warsaw)
-Testing download speed... (typically takes 10-30 seconds)
-Download test completed in 12.3 seconds
-Testing upload speed... (typically takes 15-45 seconds)
-Upload test completed in 18.7 seconds
 
 ========================================
 SPEED TEST RESULTS
@@ -144,8 +141,11 @@ SPEED TEST RESULTS
 Download: 85.42 Mbps
 Upload:   45.67 Mbps
 Ping:     12.4 ms
+Server:   Orange Polska (Warsaw)
 ========================================
 ```
+
+Uwaga: Ewentualne ostrzeżenia (np. nietypowo wysokie prędkości) zostaną wypisane pod wynikami w sekcji "Warnings:".
 
 ### Uruchomienie z własną konfiguracją
 
@@ -164,7 +164,7 @@ python sp.py
 
 ```
 Speed_test/
-├── sp.py                           # Główna aplikacja CLI
+├── sp.py                           # Lekki frontend CLI delegujący do speedtest_core
 ├── speedtest_gui.py                # Aplikacja GUI (Kivy/KivyMD)
 ├── speedtest_core.py               # Logika biznesowa (wspólna dla CLI/GUI)
 ├── requirements.txt                # Zależności Pythona
