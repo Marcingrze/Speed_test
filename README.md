@@ -284,7 +284,17 @@ python speedtest_gui.py
 
 ## 📄 Licencja
 
-Projekt jest dostępny na licencji open source. Szczegóły w pliku LICENSE.
+Projekt jest dostępny na licencji MIT. Szczegóły w pliku LICENSE.
+
+### Licencje Third-Party
+
+Ten projekt wykorzystuje następujące biblioteki:
+- **speedtest-cli** - Apache License 2.0 (pełny tekst w LICENSE-APACHE-2.0)
+- **Kivy** - MIT License
+- **KivyMD** - MIT License
+- **Pillow** - HPND License
+
+Zobacz plik NOTICE dla szczegółowych informacji o atrybuacji i licencjach.
 
 ## 🔗 Linki użyteczne
 

@@ -28,6 +28,11 @@ class TestResultStorage:
     def init_database(self) -> None:
         """Initialize SQLite database with results table."""
         with sqlite3.connect(self.db_path) as conn:
+            # Enable WAL mode for better concurrent access
+            conn.execute("PRAGMA journal_mode=WAL")
+            # Set busy timeout to 5 seconds for concurrent writes
+            conn.execute("PRAGMA busy_timeout=5000")
+
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS test_results (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,11 +46,17 @@ class TestResultStorage:
                     test_date TEXT NOT NULL
                 )
             """)
-            
-            # Create index for faster queries
+
+            # Create indexes for faster queries
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_timestamp 
+                CREATE INDEX IF NOT EXISTS idx_timestamp
                 ON test_results(timestamp)
+            """)
+
+            # Additional index for date range queries
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_test_date
+                ON test_results(test_date)
             """)
     
     def save_result(self, result: SpeedTestResult) -> int:
@@ -102,9 +113,32 @@ class TestResultStorage:
                 if result_dict['warnings']:
                     result_dict['warnings'] = json.loads(result_dict['warnings'])
                 results.append(result_dict)
-            
+
             return results
-    
+
+    def get_all_results(self) -> List[Dict[str, Any]]:
+        """Get all valid test results (use with caution on large databases).
+
+        Returns:
+            List of all result dictionaries
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("""
+                SELECT * FROM test_results
+                WHERE is_valid = 1
+                ORDER BY timestamp DESC
+            """)
+
+            results = []
+            for row in cursor:
+                result_dict = dict(row)
+                if result_dict['warnings']:
+                    result_dict['warnings'] = json.loads(result_dict['warnings'])
+                results.append(result_dict)
+
+            return results
+
     def get_results_by_date_range(self, start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
         """Get results within date range.
         
@@ -181,11 +215,11 @@ class TestResultStorage:
     
     def export_to_csv(self, output_file: str, days: Optional[int] = None) -> int:
         """Export results to CSV file.
-        
+
         Args:
             output_file: Path to output CSV file
             days: Number of recent days to export (None for all)
-            
+
         Returns:
             Number of exported records
         """
@@ -193,7 +227,7 @@ class TestResultStorage:
             start_date = datetime.now() - timedelta(days=days)
             results = self.get_results_by_date_range(start_date, datetime.now())
         else:
-            results = self.get_recent_results(limit=10000)  # Large limit for "all"
+            results = self.get_all_results()  # Get all results without limit
         
         with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
             fieldnames = [
@@ -217,11 +251,11 @@ class TestResultStorage:
     
     def export_to_json(self, output_file: str, days: Optional[int] = None) -> int:
         """Export results to JSON file.
-        
+
         Args:
             output_file: Path to output JSON file
             days: Number of recent days to export (None for all)
-            
+
         Returns:
             Number of exported records
         """
@@ -229,7 +263,7 @@ class TestResultStorage:
             start_date = datetime.now() - timedelta(days=days)
             results = self.get_results_by_date_range(start_date, datetime.now())
         else:
-            results = self.get_recent_results(limit=10000)
+            results = self.get_all_results()  # Get all results without limit
         
         export_data = {
             'export_date': datetime.now().isoformat(),

@@ -437,11 +437,12 @@ class SpeedTestMainScreen(MDScreen):
                 # First try gentle cancellation
                 self.async_runner.cancel_test()
                 try:
-                    # Give more time for network operations to complete
-                    self.async_runner._thread.join(timeout=5.0)
+                    # Use config timeout + buffer for cleanup (tests can take 60s+)
+                    timeout = self.config.get('speedtest_timeout', 60) + 10
+                    self.async_runner._thread.join(timeout=timeout)
                     if self.async_runner._thread.is_alive():
                         # Log warning but don't force - daemon thread will clean up
-                        print("Warning: Background test thread did not terminate gracefully")
+                        print(f"Warning: Background test thread did not terminate within {timeout}s")
                 except Exception:
                     pass  # Thread cleanup failed, but continue
         

@@ -4,6 +4,20 @@ Fix speedtest-cli for Python 3.13 compatibility
 
 This script patches speedtest-cli to work with Python 3.13 in Kivy environments
 by handling AttributeError when sys.stderr.fileno() is not available.
+
+NOTICE OF MODIFICATION:
+This file modifies the speedtest-cli library (Apache License 2.0).
+Original: Copyright 2012-2019 Matt Martz
+Modified by: Marcin Grześkowiak, 2024
+
+Changes made:
+- Modified exception handling in speedtest.py to catch AttributeError
+  in addition to OSError when accessing sys.stderr.fileno()
+- This fix enables compatibility with Python 3.13 in Kivy environments
+  where sys.stderr may be a ProcessingStream object without fileno() method
+
+The original speedtest-cli is licensed under Apache License 2.0.
+See LICENSE-APACHE-2.0 for the full license text.
 """
 
 import sys

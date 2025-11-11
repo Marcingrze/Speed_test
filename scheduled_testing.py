@@ -105,9 +105,12 @@ class ScheduledTestRunner:
                 print(f"⏰ Next test: {self._next_test_time.strftime('%Y-%m-%d %H:%M:%S')}")
             
             # Calculate sleep time based on monotonic time
-            sleep_seconds = min(60, self._next_test_monotonic - current_monotonic)
-            if sleep_seconds > 0:
-                self._stop_event.wait(timeout=sleep_seconds)
+            # Ensure at least 1 second sleep to prevent busy loop
+            time_until_next = self._next_test_monotonic - current_monotonic
+            sleep_seconds = max(1, min(60, time_until_next))
+
+            # Always sleep to prevent busy loop
+            self._stop_event.wait(timeout=sleep_seconds)
     
     def _run_scheduled_test(self) -> None:
         """Run a single scheduled test."""

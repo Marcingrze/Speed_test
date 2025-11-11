@@ -158,13 +158,18 @@ class SpeedTestConfig:
                 with open(self.config_file, 'r') as f:
                     # Add file locking to prevent concurrent access on Unix systems
                     if HAS_FCNTL and hasattr(fcntl, 'flock'):
-                        fcntl.flock(f.fileno(), fcntl.LOCK_SH)  # Shared read lock
-                    file_config = json.load(f)
-                
+                        try:
+                            fcntl.flock(f.fileno(), fcntl.LOCK_SH)  # Shared read lock
+                            file_config = json.load(f)
+                        finally:
+                            fcntl.flock(f.fileno(), fcntl.LOCK_UN)  # Explicitly release lock
+                    else:
+                        file_config = json.load(f)
+
                 # Validate configuration
                 validated_config = self._validate_and_update_config(file_config)
                 self.config.update(validated_config)
-                
+
             except (json.JSONDecodeError, IOError, OSError) as e:
                 print(f"Error loading configuration file: {e}")
                 print("Using default configuration.")
@@ -223,25 +228,32 @@ class SpeedTestEngine:
     def __init__(self, config: SpeedTestConfig = None):
         self.config = config or SpeedTestConfig()
         self._progress_callback: Optional[Callable[[str, Optional[float]], None]] = None
+        self._callback_lock = threading.Lock()
         self._cancel_event = threading.Event()
-    
+
     def set_progress_callback(self, callback: Callable[[str, Optional[float]], None]) -> None:
-        """Set callback function for progress updates.
-        
+        """Set callback function for progress updates (thread-safe).
+
         Args:
             callback: Function that takes (message: str, progress: Optional[float] [0-1])
         """
-        self._progress_callback = callback
-    
+        with self._callback_lock:
+            self._progress_callback = callback
+
     def _update_progress(self, message: str, progress: Optional[float] = None) -> None:
-        """Update progress if callback is set.
-        
+        """Update progress if callback is set (thread-safe).
+
         Args:
             message: Progress message
             progress: Progress value between 0 and 1, or None for indeterminate
         """
-        if self._progress_callback:
-            self._progress_callback(message, progress)
+        with self._callback_lock:
+            if self._progress_callback:
+                try:
+                    self._progress_callback(message, progress)
+                except Exception as e:
+                    # Don't let callback errors crash the test
+                    print(f"Warning: Progress callback error: {e}", file=sys.stderr)
     
     def cancel_test(self) -> None:
         """Cancel currently running test."""

@@ -1,0 +1,44 @@
+Speed Test Tool
+Copyright (c) 2024 Marcin Grześkowiak
+
+This product includes software developed by Marcin Grześkowiak with assistance
+from Generative Artificial Intelligence.
+
+================================================================================
+
+This software contains components from the following third-party projects:
+
+1. speedtest-cli
+   Copyright 2012-2019 Matt Martz
+   Licensed under the Apache License, Version 2.0
+   https://github.com/sivel/speedtest-cli
+
+2. Kivy
+   Copyright (c) 2010-2023 Kivy Team and contributors
+   Licensed under the MIT License
+   https://kivy.org
+
+3. KivyMD
+   Copyright (c) 2015-2023 KivyMD Team
+   Licensed under the MIT License
+   https://kivymd.readthedocs.io
+
+4. Pillow (PIL Fork)
+   Copyright (c) 1997-2023 by Secret Labs AB
+   Copyright (c) 1995-2023 by Fredrik Lundh
+   Licensed under the HPND License
+   https://python-pillow.org
+
+================================================================================
+
+Apache License 2.0 Components:
+
+The speedtest-cli library is used under the Apache License 2.0. The full text
+of this license is available in the LICENSE-APACHE-2.0 file in this distribution,
+or online at http://www.apache.org/licenses/LICENSE-2.0
+
+Modifications to speedtest-cli:
+- This project includes a compatibility patch (fix_speedtest_py313.py) for
+  Python 3.13 compatibility with Kivy environments
+- The patch modifies error handling in the speedtest module to catch
+  AttributeError in addition to OSError for sys.stderr.fileno()

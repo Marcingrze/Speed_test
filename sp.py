@@ -8,14 +8,21 @@ Measures download speed, upload speed, and ping latency.
 
 import sys
 import time
-import os
 import json
 from pathlib import Path
 import speedtest
 from typing import Optional, Dict, Any, Tuple
 
+# Import configuration management from core module
+try:
+    from speedtest_core import SpeedTestConfig
+    USE_CORE_CONFIG = True
+except ImportError:
+    # Fallback to local config if speedtest_core is not available
+    USE_CORE_CONFIG = False
 
-# Default configuration
+
+# Default configuration (used if speedtest_core is not available)
 DEFAULT_CONFIG = {
     'bits_to_mbps': 1_000_000,
     'connectivity_check_timeout': 10,
@@ -30,40 +37,59 @@ DEFAULT_CONFIG = {
 }
 
 # Global configuration (will be loaded from file or defaults)
+config_obj = None
 config = DEFAULT_CONFIG.copy()
 
 
 def load_config() -> None:
-    """Load configuration from file or use defaults.
-    
+    """Load configuration from file or use defaults with validation.
+
     Looks for speedtest_config.json in current directory.
     If not found, uses default configuration.
     """
-    global config
-    config_file = Path('speedtest_config.json')
-    
-    if config_file.exists():
-        try:
-            with open(config_file, 'r') as f:
-                file_config = json.load(f)
-            # Update config with values from file, keeping defaults for missing keys
-            config.update(file_config)
-            print(f"Configuration loaded from {config_file}")
-        except (json.JSONDecodeError, IOError) as e:
-            print(f"Warning: Could not load config file {config_file}: {e}")
-            print("Using default configuration.")
+    global config, config_obj
+
+    if USE_CORE_CONFIG:
+        # Use validated configuration from speedtest_core
+        config_obj = SpeedTestConfig()
+        config = config_obj.config
+        print("Configuration loaded and validated")
     else:
-        print("Using default configuration (create speedtest_config.json to customize).")
+        # Fallback to simple file loading without validation
+        config_file = Path('speedtest_config.json')
+
+        if config_file.exists():
+            try:
+                with open(config_file, 'r') as f:
+                    file_config = json.load(f)
+                # Update config with values from file, keeping defaults for missing keys
+                config.update(file_config)
+                print(f"Configuration loaded from {config_file}")
+            except (json.JSONDecodeError, IOError) as e:
+                print(f"Warning: Could not load config file {config_file}: {e}")
+                print("Using default configuration.")
+        else:
+            print("Using default configuration (create speedtest_config.json to customize).")
 
 
 def create_sample_config() -> None:
     """Create a sample configuration file if it doesn't exist."""
-    config_file = Path('speedtest_config.json')
-    if not config_file.exists():
-        with open(config_file, 'w') as f:
-            json.dump(DEFAULT_CONFIG, f, indent=2)
-        print(f"Sample configuration file created: {config_file}")
-        print("Edit this file to customize speed test settings.")
+    if USE_CORE_CONFIG:
+        # Use core module to create validated config
+        temp_config = SpeedTestConfig()
+        if temp_config.create_sample_config():
+            print("Sample configuration file created: speedtest_config.json")
+            print("Edit this file to customize speed test settings.")
+        else:
+            print("Configuration file already exists.")
+    else:
+        # Fallback to simple file creation
+        config_file = Path('speedtest_config.json')
+        if not config_file.exists():
+            with open(config_file, 'w') as f:
+                json.dump(DEFAULT_CONFIG, f, indent=2)
+            print(f"Sample configuration file created: {config_file}")
+            print("Edit this file to customize speed test settings.")
 
 
 def check_network_connectivity() -> bool:
