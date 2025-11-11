@@ -328,9 +328,9 @@ class SpeedTestMainScreen(MDScreen):
             ).open()
             return
         
-        # Cancel any existing update events
+        # CRITICAL: Properly cleanup any existing Clock events
         if self.update_event:
-            self.update_event.cancel()
+            Clock.unschedule(self.update_event)
             self.update_event = None
         
         # Update UI state
@@ -361,17 +361,8 @@ class SpeedTestMainScreen(MDScreen):
     
     def update_progress(self, dt):
         """Update progress and check for results with atomic queue operations."""
-        # Atomically drain progress updates queue to avoid race conditions
-        progress_updates = []
-        try:
-            while True:
-                update = self.async_runner.get_progress()
-                if update is None:
-                    break
-                progress_updates.append(update)
-        except:
-            # Queue is empty or other error
-            pass
+        # Use new atomic method to get all progress updates
+        progress_updates = self.async_runner.get_all_progress()
         
         # Use the latest progress update if any
         if progress_updates:
@@ -435,18 +426,23 @@ class SpeedTestMainScreen(MDScreen):
         self.progress_value = 0
         self.progress_text = ""
         
-        # Stop progress updates
+        # Stop progress updates with proper Clock cleanup
         if self.update_event:
-            self.update_event.cancel()
+            Clock.unschedule(self.update_event)
             self.update_event = None
         
-        # Ensure async runner is properly cleaned up
+        # Ensure async runner is properly cleaned up with improved timeout
         if hasattr(self.async_runner, '_thread') and self.async_runner._thread:
             if self.async_runner._thread.is_alive():
-                # Give thread a moment to finish gracefully
+                # First try gentle cancellation
+                self.async_runner.cancel_test()
                 try:
-                    self.async_runner._thread.join(timeout=1.0)
-                except:
+                    # Give more time for network operations to complete
+                    self.async_runner._thread.join(timeout=5.0)
+                    if self.async_runner._thread.is_alive():
+                        # Log warning but don't force - daemon thread will clean up
+                        print("Warning: Background test thread did not terminate gracefully")
+                except Exception:
                     pass  # Thread cleanup failed, but continue
         
         # Hide progress card
@@ -471,24 +467,28 @@ class SpeedTestMainScreen(MDScreen):
         anim.start(results_card)
     
     def show_settings_dialog(self):
-        """Show settings configuration dialog."""
-        if not self.settings_dialog:
-            self.settings_dialog = MDDialog(
-                title="Settings",
-                text="Configuration options will be available in future updates.",
-                buttons=[
-                    MDRaisedButton(
-                        text="OK",
-                        on_release=self.close_settings_dialog
-                    )
-                ]
-            )
+        """Show settings configuration dialog with proper lifecycle management."""
+        # Always create fresh dialog to avoid state issues and memory leaks
+        if self.settings_dialog:
+            self.settings_dialog.dismiss()
+        
+        self.settings_dialog = MDDialog(
+            title="Settings",
+            text="Configuration options will be available in future updates.",
+            buttons=[
+                MDRaisedButton(
+                    text="OK",
+                    on_release=self.close_settings_dialog
+                )
+            ]
+        )
         self.settings_dialog.open()
     
     def close_settings_dialog(self, *args):
-        """Close settings dialog."""
+        """Close settings dialog with proper cleanup."""
         if self.settings_dialog:
             self.settings_dialog.dismiss()
+            self.settings_dialog = None  # Allow garbage collection
 
 
 class SpeedTestApp(MDApp):

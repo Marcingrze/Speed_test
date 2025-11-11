@@ -11,9 +11,22 @@ import time
 import json
 from pathlib import Path
 import speedtest
-from typing import Optional, Dict, Any, Tuple, Callable
+from typing import Optional, Dict, Any, Tuple, Callable, List
 import threading
 import queue
+import sys
+import platform
+
+# Import file locking based on platform
+try:
+    if platform.system() != 'Windows':
+        import fcntl
+        HAS_FCNTL = True
+    else:
+        import msvcrt
+        HAS_FCNTL = False
+except ImportError:
+    HAS_FCNTL = False
 
 
 class SpeedTestConfig:
@@ -107,6 +120,19 @@ class SpeedTestConfig:
                 # Use default value for invalid entries
                 validated_config[key] = self.DEFAULT_CONFIG[key]
         
+        # Check for zero/negative values before logical consistency
+        speed_keys = ['max_typical_speed_gbps', 'max_reasonable_speed_gbps']
+        for key in speed_keys:
+            if key in validated_config and validated_config[key] <= 0:
+                validation_errors.append(f"{key} must be positive")
+                validated_config[key] = self.DEFAULT_CONFIG[key]
+        
+        ping_keys = ['max_typical_ping_ms', 'max_reasonable_ping_ms']
+        for key in ping_keys:
+            if key in validated_config and validated_config[key] <= 0:
+                validation_errors.append(f"{key} must be positive")
+                validated_config[key] = self.DEFAULT_CONFIG[key]
+        
         # Check logical consistency
         if 'max_typical_speed_gbps' in validated_config and 'max_reasonable_speed_gbps' in validated_config:
             if validated_config['max_typical_speed_gbps'] >= validated_config['max_reasonable_speed_gbps']:
@@ -130,13 +156,16 @@ class SpeedTestConfig:
         if self.config_file.exists():
             try:
                 with open(self.config_file, 'r') as f:
+                    # Add file locking to prevent concurrent access on Unix systems
+                    if HAS_FCNTL and hasattr(fcntl, 'flock'):
+                        fcntl.flock(f.fileno(), fcntl.LOCK_SH)  # Shared read lock
                     file_config = json.load(f)
                 
                 # Validate configuration
                 validated_config = self._validate_and_update_config(file_config)
                 self.config.update(validated_config)
                 
-            except (json.JSONDecodeError, IOError) as e:
+            except (json.JSONDecodeError, IOError, OSError) as e:
                 print(f"Error loading configuration file: {e}")
                 print("Using default configuration.")
                 # Keep defaults if config file is invalid
@@ -227,7 +256,8 @@ class SpeedTestEngine:
             test_client.get_config()
             return True
         except (speedtest.SpeedtestException, speedtest.ConfigRetrievalError, 
-                OSError, TimeoutError, ConnectionError):
+                OSError, TimeoutError, ConnectionError, AttributeError):
+            # AttributeError specifically for Python 3.13 fileno() issues
             return False
     
     def validate_results(self, results: Dict[str, Any]) -> Tuple[bool, list]:
@@ -283,6 +313,7 @@ class SpeedTestEngine:
             SpeedTestResult object with test results
         """
         self._cancel_event.clear()
+        speedtest_client = None
         
         try:
             self._update_progress("Initializing speed test...", 0.1)
@@ -344,8 +375,18 @@ class SpeedTestEngine:
             return SpeedTestResult(warnings=["No speedtest servers found"])
         except speedtest.SpeedtestException as e:
             return SpeedTestResult(warnings=[f"Speedtest error: {e}"])
+        except AttributeError as e:
+            # Handle Python 3.13 fileno() compatibility issues
+            return SpeedTestResult(warnings=[f"Compatibility error: {e}"])
         except Exception as e:
             return SpeedTestResult(warnings=[f"Unexpected error: {e}"])
+        finally:
+            # Ensure speedtest client resources are cleaned up
+            if speedtest_client and hasattr(speedtest_client, 'close'):
+                try:
+                    speedtest_client.close()
+                except Exception:
+                    pass  # Ignore cleanup errors
     
     def run_speed_test_with_retry(self) -> SpeedTestResult:
         """Run speed test with retry logic for transient failures."""
@@ -385,8 +426,8 @@ class AsyncSpeedTestRunner:
     def __init__(self, engine: SpeedTestEngine):
         self.engine = engine
         self._thread: Optional[threading.Thread] = None
-        self._result_queue = queue.Queue()
-        self._progress_queue = queue.Queue()
+        self._result_queue = queue.Queue(maxsize=1)  # Only need latest result
+        self._progress_queue = queue.Queue(maxsize=20)  # Limit progress queue size
         
     def start_test(self) -> None:
         """Start speed test in background thread."""
@@ -417,6 +458,16 @@ class AsyncSpeedTestRunner:
         except queue.Empty:
             return None
     
+    def get_all_progress(self) -> List[Tuple[str, float]]:
+        """Get all available progress updates atomically."""
+        updates = []
+        try:
+            while True:
+                updates.append(self._progress_queue.get_nowait())
+        except queue.Empty:
+            pass
+        return updates
+    
     def get_result(self) -> Optional[SpeedTestResult]:
         """Get test result if available."""
         try:
@@ -425,10 +476,14 @@ class AsyncSpeedTestRunner:
             return None
     
     def cancel_test(self) -> None:
-        """Cancel running test."""
+        """Cancel running test with progressive timeout."""
         self.engine.cancel_test()
         if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=5.0)
+            # Give more time for network operations to complete gracefully
+            self._thread.join(timeout=10.0)
+            if self._thread.is_alive():
+                # Log warning but don't force - daemon thread will clean up
+                print("Warning: Background test thread did not terminate gracefully")
     
     def is_running(self) -> bool:
         """Check if test is currently running."""
