@@ -204,8 +204,13 @@ update-desktop-database ~/.local/share/applications/
 
 ### 8. Rozwiązywanie Problemów
 
-#### Problemy z GUI:
+#### Problemy z GUI (Python 3.13+):
 ```bash
+# Automatyczny patch jest stosowany podczas instalacji
+# Jeśli GUI nie działa, zastosuj patch ręcznie:
+source speedtest_env/bin/activate
+python3 fix_speedtest_py313.py
+
 # Sprawdzenie instalacji Kivy
 python3 -c "import kivy; print(kivy.__version__)"
 python3 -c "from kivymd.app import MDApp; print('GUI OK')"

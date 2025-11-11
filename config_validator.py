@@ -75,26 +75,54 @@ class ConfigValidator:
         }
     }
 
-    # Synchronize numeric ranges with SpeedTestConfig to avoid drift
-    try:
-        for _key, (_min, _max) in SpeedTestConfig.VALIDATION_RULES.items():
-            if _key in SCHEMA:
-                SCHEMA[_key]['min'] = _min
-                SCHEMA[_key]['max'] = _max
-    except Exception:
-        # If SpeedTestConfig is unavailable for any reason, keep local schema
-        pass
-    
+    @classmethod
+    def sync_schema_from_core(cls) -> List[str]:
+        """Synchronize schema ranges from SpeedTestConfig.
+
+        Returns:
+            List of warnings/errors if drift detected
+        """
+        warnings = []
+
+        # Verify all core validation rules exist in schema
+        for key in SpeedTestConfig.VALIDATION_RULES:
+            if key not in cls.SCHEMA:
+                error = f"DRIFT ERROR: SpeedTestConfig.VALIDATION_RULES has '{key}' not in ConfigValidator.SCHEMA"
+                warnings.append(error)
+                print(f"ERROR: {error}")
+
+        # Verify all schema keys exist in core config
+        for key in cls.SCHEMA:
+            if key not in SpeedTestConfig.DEFAULT_CONFIG:
+                if key == 'show_detailed_progress':
+                    continue  # Boolean keys don't have VALIDATION_RULES
+                error = f"DRIFT ERROR: ConfigValidator.SCHEMA has '{key}' not in SpeedTestConfig"
+                warnings.append(error)
+                print(f"ERROR: {error}")
+
+        # Sync min/max values
+        for key, (min_val, max_val) in SpeedTestConfig.VALIDATION_RULES.items():
+            if key in cls.SCHEMA:
+                if cls.SCHEMA[key].get('min') != min_val or cls.SCHEMA[key].get('max') != max_val:
+                    warnings.append(f"Syncing {key}: {cls.SCHEMA[key].get('min')}-{cls.SCHEMA[key].get('max')} → {min_val}-{max_val}")
+                cls.SCHEMA[key]['min'] = min_val
+                cls.SCHEMA[key]['max'] = max_val
+
+        return warnings
+
     @classmethod
     def validate_config(cls, config: Dict[str, Any]) -> Tuple[bool, List[str]]:
         """Validate configuration against schema.
-        
+
         Args:
             config: Configuration dictionary to validate
-            
+
         Returns:
             Tuple of (is_valid, error_messages)
         """
+        # Auto-sync schema on first use
+        cls.sync_schema_from_core()
+
         errors = []
         
         # Check for unknown keys
@@ -200,12 +228,20 @@ class ConfigValidator:
 def main():
     """CLI interface for configuration validation."""
     import sys
-    
+
+    # Synchronize schema with SpeedTestConfig on startup
+    warnings = ConfigValidator.sync_schema_from_core()
+    if warnings:
+        print("Schema synchronization warnings:")
+        for warning in warnings:
+            print(f"  {warning}")
+        print()
+
     if len(sys.argv) < 2:
         print("Usage: python config_validator.py <config_file>")
         print("       python config_validator.py --schema")
         return 1
-    
+
     if sys.argv[1] == "--schema":
         print(ConfigValidator.get_schema_documentation())
         return 0

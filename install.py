@@ -25,14 +25,20 @@ class SpeedTestInstaller:
         self.venv_python = self.venv_dir / "bin" / "python3"
         self.install_dir = Path("/usr/local/bin")
         self.user_mode = False
-        
-        # Check if running as root
-        if os.geteuid() != 0:
+
+        # Check if running as root (Unix/Linux only)
+        try:
+            if os.geteuid() != 0:
+                self.user_mode = True
+                self.install_dir = Path.home() / ".local" / "bin"
+                print("Running in user mode - installing to ~/.local/bin")
+            else:
+                print("Running as root - installing to /usr/local/bin")
+        except AttributeError:
+            # Windows doesn't have geteuid - default to user mode
             self.user_mode = True
             self.install_dir = Path.home() / ".local" / "bin"
-            print("Running in user mode - installing to ~/.local/bin")
-        else:
-            print("Running as root - installing to /usr/local/bin")
+            print("Running in user mode (Windows) - installing to ~/.local/bin")
     
     def check_python_version(self) -> bool:
         """Sprawdź czy Python ma odpowiednią wersję."""
@@ -94,6 +100,42 @@ class SpeedTestInstaller:
         except subprocess.TimeoutExpired:
             print("Error: Installation timed out (took longer than 10 minutes)")
             return False
+
+    def apply_python313_patch(self) -> bool:
+        """Apply Python 3.13 compatibility patch for speedtest-cli."""
+        # Check if Python 3.13+
+        version = sys.version_info
+        if version.major < 3 or (version.major == 3 and version.minor < 13):
+            # Patch not needed for Python < 3.13
+            return True
+
+        print("Applying Python 3.13 compatibility patch...")
+        fix_script = self.app_dir / "fix_speedtest_py313.py"
+
+        if not fix_script.exists():
+            print("Warning: fix_speedtest_py313.py not found, skipping patch")
+            return True
+
+        try:
+            result = subprocess.run([
+                str(self.venv_python), str(fix_script)
+            ], check=True, capture_output=True, text=True, timeout=30)
+
+            # Check if patch was successful
+            if "successfully patched" in result.stdout or "already patched" in result.stdout:
+                print("✓ Python 3.13 patch applied")
+                return True
+            else:
+                print("Warning: Patch script ran but result unclear")
+                return True  # Don't fail installation
+
+        except subprocess.CalledProcessError as e:
+            print(f"Warning: Could not apply Python 3.13 patch: {e}")
+            print("GUI may not work properly. Run 'python3 fix_speedtest_py313.py' manually.")
+            return True  # Don't fail installation
+        except subprocess.TimeoutExpired:
+            print("Warning: Patch script timed out")
+            return True  # Don't fail installation
     
     def create_executable_scripts(self) -> bool:
         """Utwórz pliki uruchamialne."""
@@ -295,21 +337,25 @@ StartupNotify=true
         """Uruchom pełny proces instalacji."""
         print("Speed Test Tool Installer")
         print("=" * 30)
-        
+
         if not self.check_python_version():
             return False
-        
+
         if not self.create_virtual_environment():
             return False
-        
+
         if not self.install_dependencies():
             return False
-        
+
+        # Apply Python 3.13 patch if needed
+        if not self.apply_python313_patch():
+            return False
+
         if not self.create_executable_scripts():
             return False
-        
+
         self.create_desktop_entry()  # Optional, don't fail if unsuccessful
-        
+
         if not self.verify_installation():
             return False
         
@@ -338,7 +384,7 @@ def main():
         print("Usage: python3 install.py [--user]")
         print("")
         print("Options:")
-        print("  --user    Install in user mode (~/. local/bin)")
+        print("  --user    Install in user mode (~/.local/bin)")
         print("  --help    Show this help")
         print("")
         print("This installer will:")

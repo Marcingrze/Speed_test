@@ -163,8 +163,13 @@ speedtest-storage cleanup --keep-days 365   # Usuń starsze niż rok
 
 ## 🔧 Rozwiązywanie problemów
 
-### GUI nie uruchamia się
+### GUI nie uruchamia się (Python 3.13+)
 ```bash
+# Automatyczny patch jest stosowany podczas instalacji
+# Jeśli GUI nie działa, zastosuj patch ręcznie:
+source speedtest_env/bin/activate
+python3 fix_speedtest_py313.py
+
 # Sprawdź zależności GUI
 python3 -c "from kivymd.app import MDApp; print('GUI OK')"
 

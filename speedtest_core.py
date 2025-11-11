@@ -16,17 +16,67 @@ import threading
 import queue
 import sys
 import platform
+import random
 
 # Import file locking based on platform
-try:
-    if platform.system() != 'Windows':
-        import fcntl
-        HAS_FCNTL = True
-    else:
+_IS_WINDOWS = platform.system() == 'Windows'
+_HAS_FILE_LOCKING = False
+
+if _IS_WINDOWS:
+    try:
         import msvcrt
-        HAS_FCNTL = False
-except ImportError:
-    HAS_FCNTL = False
+        _HAS_FILE_LOCKING = True
+    except ImportError:
+        pass
+else:
+    try:
+        import fcntl
+        _HAS_FILE_LOCKING = True
+    except ImportError:
+        pass
+
+
+def _lock_file_shared(file_obj):
+    """Acquire file lock (platform-agnostic).
+
+    Note: On Unix, this acquires a shared (read) lock via fcntl.flock().
+    On Windows, msvcrt.locking() only supports exclusive locks, so this
+    function provides exclusive locking on Windows. This is acceptable for
+    config file reads since they are fast operations.
+    """
+    if not _HAS_FILE_LOCKING:
+        return  # No locking available
+
+    if _IS_WINDOWS:
+        import msvcrt
+        # Windows: msvcrt.locking() only supports exclusive locks
+        # Lock first byte to minimize lock scope
+        try:
+            # Try non-blocking exclusive lock first
+            msvcrt.locking(file_obj.fileno(), msvcrt.LK_NBLCK, 1)
+        except (IOError, OSError):
+            # File already locked, wait with blocking exclusive lock
+            msvcrt.locking(file_obj.fileno(), msvcrt.LK_LOCK, 1)
+    else:
+        import fcntl
+        # Unix: use shared (read) lock
+        fcntl.flock(file_obj.fileno(), fcntl.LOCK_SH)
+
+
+def _unlock_file(file_obj):
+    """Release file lock (platform-agnostic)."""
+    if not _HAS_FILE_LOCKING:
+        return  # No locking available
+
+    if _IS_WINDOWS:
+        import msvcrt
+        try:
+            msvcrt.locking(file_obj.fileno(), msvcrt.LK_UNLCK, 1)
+        except (IOError, OSError):
+            pass  # Ignore unlock errors
+    else:
+        import fcntl
+        fcntl.flock(file_obj.fileno(), fcntl.LOCK_UN)
 
 
 class SpeedTestConfig:
@@ -156,15 +206,12 @@ class SpeedTestConfig:
         if self.config_file.exists():
             try:
                 with open(self.config_file, 'r') as f:
-                    # Add file locking to prevent concurrent access on Unix systems
-                    if HAS_FCNTL and hasattr(fcntl, 'flock'):
-                        try:
-                            fcntl.flock(f.fileno(), fcntl.LOCK_SH)  # Shared read lock
-                            file_config = json.load(f)
-                        finally:
-                            fcntl.flock(f.fileno(), fcntl.LOCK_UN)  # Explicitly release lock
-                    else:
+                    # Platform-agnostic file locking to prevent concurrent access
+                    try:
+                        _lock_file_shared(f)
                         file_config = json.load(f)
+                    finally:
+                        _unlock_file(f)
 
                 # Validate configuration
                 validated_config = self._validate_and_update_config(file_config)
@@ -197,18 +244,20 @@ class SpeedTestConfig:
 
 class SpeedTestResult:
     """Container for speed test results."""
-    
-    def __init__(self, download_mbps: float = 0, upload_mbps: float = 0, 
-                 ping_ms: float = 0, server_info: str = "", 
-                 is_valid: bool = False, warnings: list = None):
+
+    def __init__(self, download_mbps: float = 0, upload_mbps: float = 0,
+                 ping_ms: float = 0, server_info: str = "",
+                 is_valid: bool = False, warnings: list = None,
+                 is_cancelled: bool = False):
         self.download_mbps = download_mbps
         self.upload_mbps = upload_mbps
         self.ping_ms = ping_ms
         self.server_info = server_info
         self.is_valid = is_valid
         self.warnings = warnings or []
+        self.is_cancelled = is_cancelled
         self.timestamp = time.time()
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert result to dictionary."""
         return {
@@ -218,6 +267,7 @@ class SpeedTestResult:
             'server_info': self.server_info,
             'is_valid': self.is_valid,
             'warnings': self.warnings,
+            'is_cancelled': self.is_cancelled,
             'timestamp': self.timestamp
         }
 
@@ -330,36 +380,36 @@ class SpeedTestEngine:
         try:
             self._update_progress("Initializing speed test...", 0.1)
             if self._cancel_event.is_set():
-                return SpeedTestResult()
-            
+                return SpeedTestResult(is_cancelled=True, warnings=["Test cancelled by user"])
+
             speedtest_client = speedtest.Speedtest(
                 timeout=self.config['speedtest_timeout']
             )
-            
+
             self._update_progress("Fetching server list...", 0.2)
             if self._cancel_event.is_set():
-                return SpeedTestResult()
+                return SpeedTestResult(is_cancelled=True, warnings=["Test cancelled by user"])
             speedtest_client.get_servers()
-            
+
             self._update_progress("Selecting best server...", 0.3)
             if self._cancel_event.is_set():
-                return SpeedTestResult()
+                return SpeedTestResult(is_cancelled=True, warnings=["Test cancelled by user"])
             best_server = speedtest_client.get_best_server()
             server_info = f"{best_server['sponsor']} ({best_server['name']})"
-            
+
             self._update_progress(f"Testing download speed...", 0.4)
             if self._cancel_event.is_set():
-                return SpeedTestResult()
+                return SpeedTestResult(is_cancelled=True, warnings=["Test cancelled by user"])
             speedtest_client.download()
-            
+
             self._update_progress(f"Testing upload speed...", 0.7)
             if self._cancel_event.is_set():
-                return SpeedTestResult()
+                return SpeedTestResult(is_cancelled=True, warnings=["Test cancelled by user"])
             speedtest_client.upload()
-            
+
             self._update_progress("Processing results...", 0.9)
             if self._cancel_event.is_set():
-                return SpeedTestResult()
+                return SpeedTestResult(is_cancelled=True, warnings=["Test cancelled by user"])
             
             # Extract and convert results
             results = speedtest_client.results.dict()
@@ -388,47 +438,70 @@ class SpeedTestEngine:
         except speedtest.SpeedtestException as e:
             return SpeedTestResult(warnings=[f"Speedtest error: {e}"])
         except AttributeError as e:
-            # Handle Python 3.13 fileno() compatibility issues
-            return SpeedTestResult(warnings=[f"Compatibility error: {e}"])
+            # Handle Python 3.13 fileno() compatibility issues specifically
+            error_msg = str(e).lower()
+            if 'fileno' in error_msg or 'stderr' in error_msg or 'stdout' in error_msg:
+                return SpeedTestResult(warnings=[f"Python 3.13 compatibility error: {e}"])
+            else:
+                # Unexpected AttributeError - log full traceback for debugging
+                import traceback
+                traceback.print_exc()
+                return SpeedTestResult(warnings=[f"Unexpected AttributeError: {e}. Check logs for details."])
         except Exception as e:
             return SpeedTestResult(warnings=[f"Unexpected error: {e}"])
         finally:
             # Ensure speedtest client resources are cleaned up
-            if speedtest_client and hasattr(speedtest_client, 'close'):
-                try:
-                    speedtest_client.close()
-                except Exception:
-                    pass  # Ignore cleanup errors
+            if speedtest_client:
+                if hasattr(speedtest_client, 'close'):
+                    try:
+                        speedtest_client.close()
+                    except Exception as e:
+                        # Log cleanup errors for debugging instead of silently ignoring
+                        print(f"Warning: Error during speedtest client cleanup: {e}", file=sys.stderr)
+
+                # Additional cleanup: close any open connections
+                if hasattr(speedtest_client, '_opener'):
+                    try:
+                        speedtest_client._opener.close()
+                    except Exception:
+                        pass  # _opener cleanup is optional
     
     def run_speed_test_with_retry(self) -> SpeedTestResult:
-        """Run speed test with retry logic for transient failures."""
+        """Run speed test with exponential backoff retry logic for transient failures."""
         max_retries = self.config['max_retries']
-        
+        base_delay = self.config['retry_delay']
+
         for attempt in range(max_retries):
             if self._cancel_event.is_set():
-                return SpeedTestResult()
-                
+                return SpeedTestResult(is_cancelled=True, warnings=["Test cancelled by user"])
+
             self._update_progress(f"Attempt {attempt + 1}/{max_retries}", 0.0)
-            
+
             result = self.run_speed_test()
-            
+
             # If test was successful or cancelled, return result
             if result.is_valid or self._cancel_event.is_set():
                 return result
-            
+
             # Check if error is retryable (network-related)
             if result.warnings:
                 error_msg = result.warnings[0].lower()
-                retryable_errors = ['unable to retrieve', 'no speedtest servers', 
+                retryable_errors = ['unable to retrieve', 'no speedtest servers',
                                   'connection', 'timeout', 'network']
                 is_retryable = any(err in error_msg for err in retryable_errors)
-                
+
                 if not is_retryable or attempt == max_retries - 1:
                     return result
-                
-                self._update_progress(f"Retrying in {self.config['retry_delay']} seconds...", None)
-                time.sleep(self.config['retry_delay'])
-        
+
+                # Exponential backoff with jitter
+                # delay = base * (2^attempt) + random jitter
+                backoff = base_delay * (2 ** attempt)
+                jitter = random.uniform(0, backoff * 0.1)  # 10% jitter
+                delay = min(backoff + jitter, 30)  # Cap at 30 seconds
+
+                self._update_progress(f"Retrying in {delay:.1f} seconds...", None)
+                time.sleep(delay)
+
         return SpeedTestResult(warnings=["All retry attempts failed"])
 
 
@@ -439,23 +512,24 @@ class AsyncSpeedTestRunner:
         self.engine = engine
         self._thread: Optional[threading.Thread] = None
         self._result_queue = queue.Queue(maxsize=1)  # Only need latest result
-        self._progress_queue = queue.Queue(maxsize=20)  # Limit progress queue size
-        
+        # Use SimpleQueue (unbounded) to prevent blocking - GUI consumption rate may vary
+        self._progress_queue = queue.SimpleQueue()
+
     def start_test(self) -> None:
         """Start speed test in background thread."""
         if self._thread and self._thread.is_alive():
             return  # Test already running
-        
+
         # Set up progress callback
         self.engine.set_progress_callback(self._progress_callback)
-        
+
         # Start test in background
         self._thread = threading.Thread(target=self._run_test_thread)
         self._thread.daemon = True
         self._thread.start()
-    
+
     def _progress_callback(self, message: str, progress: float) -> None:
-        """Internal progress callback."""
+        """Internal progress callback that never blocks."""
         self._progress_queue.put((message, progress))
     
     def _run_test_thread(self) -> None:
@@ -464,18 +538,18 @@ class AsyncSpeedTestRunner:
         self._result_queue.put(result)
     
     def get_progress(self) -> Optional[Tuple[str, float]]:
-        """Get latest progress update if available."""
+        """Get latest progress update if available (non-blocking)."""
         try:
-            return self._progress_queue.get_nowait()
+            return self._progress_queue.get(block=False)
         except queue.Empty:
             return None
-    
+
     def get_all_progress(self) -> List[Tuple[str, float]]:
-        """Get all available progress updates atomically."""
+        """Get all available progress updates atomically (non-blocking)."""
         updates = []
         try:
             while True:
-                updates.append(self._progress_queue.get_nowait())
+                updates.append(self._progress_queue.get(block=False))
         except queue.Empty:
             pass
         return updates

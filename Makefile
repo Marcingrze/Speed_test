@@ -37,6 +37,8 @@ setup:
 	python3 -m venv speedtest_env
 	./speedtest_env/bin/pip install --upgrade pip
 	./speedtest_env/bin/pip install -r requirements.txt
+	@echo "Applying Python 3.13 compatibility patch..."
+	./speedtest_env/bin/python3 fix_speedtest_py313.py || echo "Warning: Patch failed, GUI may not work on Python 3.13"
 	@echo "✓ Setup completed"
 	@echo "Run 'make install' to install executable scripts"
 
@@ -105,6 +107,8 @@ update:
 	@echo "Updating dependencies..."
 	./speedtest_env/bin/pip install --upgrade pip
 	./speedtest_env/bin/pip install --upgrade -r requirements.txt
+	@echo "Applying Python 3.13 compatibility patch..."
+	./speedtest_env/bin/python3 fix_speedtest_py313.py || echo "Warning: Patch failed, GUI may not work on Python 3.13"
 	@echo "✓ Dependencies updated"
 
 # Clean temporary files

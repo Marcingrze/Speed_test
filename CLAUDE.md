@@ -111,7 +111,14 @@ Key settings: timeouts, retry logic, validation thresholds (typical vs reasonabl
 ## Python 3.13 Compatibility Issue
 
 **Problem**: speedtest-cli raises `AttributeError` on `sys.stderr.fileno()` in Kivy environments
-**Fix**: Run `python fix_speedtest_py313.py` after installing dependencies
+
+**Automatic Fix**: The installer now automatically applies the patch during setup:
+- `install.py` runs `fix_speedtest_py313.py` after installing dependencies
+- `make setup` includes the patch step
+- `make update` reapplies the patch after updating dependencies
+
+**Manual Fix** (if needed): Run `python fix_speedtest_py313.py` in the venv
+
 **GUI Workaround**: Sets `KIVY_NO_CONSOLELOG=1` to disable console logging
 
 ## Code Review Guidelines

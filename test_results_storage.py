@@ -213,69 +213,123 @@ class TestResultStorage:
             'ping': calc_stats(pings)
         }
     
-    def export_to_csv(self, output_file: str, days: Optional[int] = None) -> int:
-        """Export results to CSV file.
+    def export_to_csv(self, output_file: str, days: Optional[int] = None, batch_size: int = 1000) -> int:
+        """Export results to CSV file using batched queries for memory efficiency.
 
         Args:
             output_file: Path to output CSV file
             days: Number of recent days to export (None for all)
+            batch_size: Number of records per batch (default 1000)
 
         Returns:
             Number of exported records
         """
-        if days:
-            start_date = datetime.now() - timedelta(days=days)
-            results = self.get_results_by_date_range(start_date, datetime.now())
-        else:
-            results = self.get_all_results()  # Get all results without limit
-        
+        total_exported = 0
+
         with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
             fieldnames = [
-                'test_date', 'download_mbps', 'upload_mbps', 'ping_ms', 
+                'test_date', 'download_mbps', 'upload_mbps', 'ping_ms',
                 'server_info', 'warnings'
             ]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
-            
-            for result in reversed(results):  # Oldest first for CSV
-                writer.writerow({
-                    'test_date': result['test_date'],
-                    'download_mbps': result['download_mbps'],
-                    'upload_mbps': result['upload_mbps'],
-                    'ping_ms': result['ping_ms'],
-                    'server_info': result['server_info'],
-                    'warnings': '; '.join(result['warnings']) if result['warnings'] else ''
-                })
-        
-        return len(results)
+
+            # Stream results in batches
+            offset = 0
+            while True:
+                batch = self._get_results_batch(days, offset, batch_size)
+                if not batch:
+                    break
+
+                for result in batch:
+                    writer.writerow({
+                        'test_date': result['test_date'],
+                        'download_mbps': result['download_mbps'],
+                        'upload_mbps': result['upload_mbps'],
+                        'ping_ms': result['ping_ms'],
+                        'server_info': result['server_info'],
+                        'warnings': '; '.join(result['warnings']) if result['warnings'] else ''
+                    })
+                    total_exported += 1
+
+                offset += batch_size
+
+        return total_exported
+
+    def _get_results_batch(self, days: Optional[int], offset: int, limit: int) -> List[Dict[str, Any]]:
+        """Get a batch of results for streaming export.
+
+        Args:
+            days: Number of recent days (None for all)
+            offset: Starting offset
+            limit: Number of records to fetch
+
+        Returns:
+            List of result dictionaries
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+
+            if days:
+                start_timestamp = (datetime.now() - timedelta(days=days)).timestamp()
+                cursor = conn.execute("""
+                    SELECT * FROM test_results
+                    WHERE is_valid = 1 AND timestamp >= ?
+                    ORDER BY timestamp ASC
+                    LIMIT ? OFFSET ?
+                """, (start_timestamp, limit, offset))
+            else:
+                cursor = conn.execute("""
+                    SELECT * FROM test_results
+                    WHERE is_valid = 1
+                    ORDER BY timestamp ASC
+                    LIMIT ? OFFSET ?
+                """, (limit, offset))
+
+            results = []
+            for row in cursor:
+                result_dict = dict(row)
+                if result_dict['warnings']:
+                    result_dict['warnings'] = json.loads(result_dict['warnings'])
+                else:
+                    result_dict['warnings'] = []
+                results.append(result_dict)
+
+            return results
     
-    def export_to_json(self, output_file: str, days: Optional[int] = None) -> int:
-        """Export results to JSON file.
+    def export_to_json(self, output_file: str, days: Optional[int] = None, batch_size: int = 1000) -> int:
+        """Export results to JSON file using batched queries for memory efficiency.
 
         Args:
             output_file: Path to output JSON file
             days: Number of recent days to export (None for all)
+            batch_size: Number of records per batch (default 1000)
 
         Returns:
             Number of exported records
         """
-        if days:
-            start_date = datetime.now() - timedelta(days=days)
-            results = self.get_results_by_date_range(start_date, datetime.now())
-        else:
-            results = self.get_all_results()  # Get all results without limit
-        
+        all_results = []
+        offset = 0
+
+        # Stream results in batches
+        while True:
+            batch = self._get_results_batch(days, offset, batch_size)
+            if not batch:
+                break
+            all_results.extend(batch)
+            offset += batch_size
+
         export_data = {
             'export_date': datetime.now().isoformat(),
             'export_period_days': days,
-            'total_results': len(results),
-            'results': list(reversed(results))  # Oldest first
+            'total_results': len(all_results),
+            'results': all_results  # Already ordered ASC from query
         }
-        
+
         with open(output_file, 'w', encoding='utf-8') as jsonfile:
             json.dump(export_data, jsonfile, indent=2, ensure_ascii=False)
-        
-        return len(results)
+
+        return len(all_results)
     
     def cleanup_old_results(self, keep_days: int = 365) -> int:
         """Remove old results beyond specified days.

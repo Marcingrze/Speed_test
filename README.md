@@ -239,12 +239,22 @@ pip install -r requirements.txt
 ```
 AttributeError: 'ProcessingStream' object has no attribute 'fileno'
 ```
-**Rozwiązanie**: Uruchom skrypt naprawy dla Python 3.13:
+
+**Automatyczne rozwiązanie**: Od wersji bieżącej patch jest automatycznie stosowany podczas instalacji.
+
+**Ręczne rozwiązanie** (jeśli potrzebne):
 ```bash
-python fix_speedtest_py313.py
+source speedtest_env/bin/activate  # lub ebv/bin/activate
+python3 fix_speedtest_py313.py
 ```
 
-Lub zastosuj patch manualnie - dodaj `AttributeError` do obsługi wyjątków w `speedtest.py` w linii ~183.
+**Alternatywnie** - zastosuj patch manualnie, dodając `AttributeError` do obsługi wyjątków w pliku `speedtest.py` linii ~181:
+```python
+# Przed:
+except OSError:
+# Po:
+except (OSError, AttributeError):
+```
 
 ## 📦 Zależności
 

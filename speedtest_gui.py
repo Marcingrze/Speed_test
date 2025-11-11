@@ -374,11 +374,17 @@ class SpeedTestMainScreen(MDScreen):
         # Check for test completion
         result = self.async_runner.get_result()
         if result:
+            # Handle cancellation separately
+            if result.is_cancelled:
+                self.reset_ui_state()
+                self.status_text = "Test cancelled"
+                return False  # Stop the clock event
+
             self.handle_test_result(result)
             return False  # Stop the clock event
-        
+
         return True  # Continue the clock event
-    
+
     def handle_test_result(self, result):
         """Handle completed test result."""
         self.reset_ui_state()
@@ -437,8 +443,13 @@ class SpeedTestMainScreen(MDScreen):
                 # First try gentle cancellation
                 self.async_runner.cancel_test()
                 try:
-                    # Use config timeout + buffer for cleanup (tests can take 60s+)
-                    timeout = self.config.get('speedtest_timeout', 60) + 10
+                    # Calculate worst-case timeout accounting for retry logic with exponential backoff
+                    base_timeout = self.config.get('speedtest_timeout', 60)
+                    max_retries = self.config.get('max_retries', 3)
+                    retry_delay = self.config.get('retry_delay', 2)
+                    # Worst case: base_timeout * retries + exponential backoff delays + buffer
+                    # Exponential backoff: 2s, 4s, 8s for 3 retries = ~14s max
+                    timeout = (base_timeout + retry_delay * 2 ** (max_retries - 1)) * max_retries + 10
                     self.async_runner._thread.join(timeout=timeout)
                     if self.async_runner._thread.is_alive():
                         # Log warning but don't force - daemon thread will clean up
@@ -469,10 +480,17 @@ class SpeedTestMainScreen(MDScreen):
     
     def show_settings_dialog(self):
         """Show settings configuration dialog with proper lifecycle management."""
-        # Always create fresh dialog to avoid state issues and memory leaks
+        # Properly cleanup existing dialog before creating new one
         if self.settings_dialog:
             self.settings_dialog.dismiss()
-        
+            self.settings_dialog = None
+            # Allow one frame for Kivy to complete cleanup
+            Clock.schedule_once(lambda dt: self._create_settings_dialog(), 0)
+        else:
+            self._create_settings_dialog()
+
+    def _create_settings_dialog(self):
+        """Create and show settings dialog."""
         self.settings_dialog = MDDialog(
             title="Settings",
             text="Configuration options will be available in future updates.",
@@ -484,7 +502,7 @@ class SpeedTestMainScreen(MDScreen):
             ]
         )
         self.settings_dialog.open()
-    
+
     def close_settings_dialog(self, *args):
         """Close settings dialog with proper cleanup."""
         if self.settings_dialog:
