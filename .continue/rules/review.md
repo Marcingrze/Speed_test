@@ -2,49 +2,49 @@
 invokable: true
 ---
 
-Review this code for potential issues, including:
+Review this Python speed testing application code for potential issues, focusing on:
 
-## Architecture and Modular Design
-- Module separation: Verify clean separation between core logic, UI, storage, and scheduling
-- Interface consistency: Check that progress callbacks and result objects follow consistent patterns
-- Dependency injection: Ensure components can be easily tested and mocked
-- Async/threading safety: Verify thread-safe operations in GUI and scheduling modules
-- Progress cancellation: Check that cancellation signals propagate properly through all layers
+## Core Architecture & Threading Safety
+- **Module separation**: Verify clean separation between speedtest_core.py, GUI, storage, and scheduling
+- **Progress callbacks**: Check that progress updates work correctly without race conditions
+- **Thread safety**: Verify GUI operations (speedtest_gui.py) don't block UI thread
+- **Cancellation handling**: Ensure speed test cancellation propagates through all layers
+- **Resource cleanup**: Check proper cleanup of speedtest-cli connections and threads
 
-## Configuration and Validation System
-- JSON schema validation: Verify configuration loading handles malformed JSON gracefully
-- Value range validation: Check that configuration values are within reasonable bounds
-- Environment overrides: Consider if configuration should support environment variable overrides
-- Configuration migration: Verify backward compatibility when configuration format changes
-- Default fallbacks: Ensure sensible defaults for all configuration options
+## SpeedTest Core Engine (speedtest_core.py)
+- **Config validation**: Verify SpeedTestConfig handles invalid JSON and out-of-range values
+- **Network error handling**: Check retry logic for speedtest-cli exceptions
+- **Result validation**: Ensure speed/ping validation catches unrealistic values
+- **Progress tracking**: Verify progress callbacks work with different speedtest phases
+- **Memory management**: Check for leaks in long-running SpeedTestEngine instances
 
-## Data Persistence and Storage
-- SQLite schema management: Check database schema creation, migration, and indexing
-- Transaction safety: Verify proper transaction handling for data consistency
-- Export functionality: Test CSV and JSON export with various data sizes
-- Data cleanup: Check that old data cleanup doesn't affect current operations
-- Statistics calculations: Verify accuracy of statistical computations and aggregations
+## SQLite Storage & Data Management (test_results_storage.py)
+- **Database schema**: Check speedtest_history.db table creation and indexing
+- **Transaction safety**: Verify SQLite operations handle concurrent access properly
+- **Export functions**: Test CSV/JSON export with large datasets (10k+ results)
+- **Statistics accuracy**: Verify mean/median calculations for speed/ping metrics
+- **Cleanup operations**: Ensure old data deletion doesn't corrupt active sessions
 
-## GUI Application Architecture
-- Threading model: Verify GUI operations are thread-safe and don't block the UI
-- Progress updates: Check that real-time progress updates work correctly without memory leaks
-- Resource management: Ensure proper cleanup of GUI resources and background threads
-- Error handling in UI: Verify error messages are user-friendly and actionable
-- Material Design compliance: Check adherence to Material Design patterns and accessibility
+## Kivy/KivyMD GUI Application (speedtest_gui.py)
+- **Threading model**: Check AsyncSpeedTestRunner integration with Kivy Clock
+- **Progress updates**: Verify queue-based progress updates don't cause memory leaks
+- **UI responsiveness**: Ensure speed tests don't freeze Material Design interface
+- **Error dialogs**: Check user-friendly error messages and Snackbar notifications
+- **Resource cleanup**: Verify proper thread cleanup on app close or test cancellation
 
-## Network Resilience and Retry Logic
-- Retry effectiveness: Verify retry logic triggers for appropriate network errors
-- Timeout configurations: Check that timeout values are suitable for different network conditions
-- Connection state management: Ensure proper cleanup of network resources
-- Error classification: Verify that transient vs permanent errors are handled differently
-- Progress tracking accuracy: Check that progress estimates are realistic and helpful
+## Network Testing & Retry Logic (CLI & Core)
+- **speedtest-cli integration**: Check proper handling of speedtest.SpeedtestException
+- **Retry strategies**: Verify network errors trigger retries but not measurement errors
+- **Timeout handling**: Check connectivity_check_timeout vs speedtest_timeout values
+- **Server selection**: Ensure best server selection doesn't fail on limited networks
+- **Python 3.13 compatibility**: Verify fileno() patch for speedtest-cli is applied
 
-## Background Scheduling and Automation
-- Signal handling: Verify graceful shutdown on system signals (SIGTERM, SIGINT)
-- Scheduler reliability: Check that scheduled tests run consistently and handle clock changes
-- Resource management: Ensure long-running processes don't leak memory or resources
-- Error recovery: Verify scheduler continues operating after individual test failures
-- Configuration reloading: Check if scheduler can adapt to configuration changes
+## Background Scheduling (scheduled_testing.py)
+- **Signal handling**: Check SIGINT/SIGTERM graceful shutdown with proper thread cleanup
+- **Monotonic timing**: Verify scheduler uses monotonic time to avoid clock drift issues
+- **Error recovery**: Ensure individual test failures don't crash scheduler loop
+- **Database contention**: Check concurrent access between scheduler and CLI/GUI
+- **Memory usage**: Verify long-running scheduler doesn't accumulate memory leaks
 
 ## Data Export and Analytics
 - Export format consistency: Verify CSV and JSON exports maintain data integrity
@@ -102,19 +102,19 @@ Review this code for potential issues, including:
 - Documentation completeness: Ensure all public interfaces are documented
 - Version compatibility: Check compatibility with specified Python and library versions
 
-Focus particularly on:
-- Thread safety in GUI and scheduled operations
-- Data integrity in SQLite operations and exports
-- Network error resilience and retry logic effectiveness
-- Resource cleanup in long-running processes
-- User experience during various failure scenarios
-- Performance with large historical datasets
-- Configuration system robustness and validation
-- Cross-module interface consistency and testability
+Focus specifically on:
+- **speedtest-cli integration**: Check for proper exception handling of network timeouts
+- **Kivy threading**: Verify Clock.schedule_interval usage doesn't create race conditions
+- **SQLite concurrent access**: Check database operations during scheduled tests
+- **Configuration validation**: Ensure JSON schema prevents invalid speed/ping thresholds
+- **Resource cleanup**: Verify threads/connections are properly closed on cancellation
+- **Error user experience**: Check that speedtest failures show actionable error messages
+- **Performance with large datasets**: Test export/stats functions with 10k+ historical results
 
-Provide specific, actionable feedback with code examples where helpful, especially for:
-- Threading issues or race conditions
-- Database transaction safety
-- Error handling improvements
-- Performance optimization opportunities
-- Security vulnerabilities or input validation gaps
+Provide actionable feedback with code examples for:
+- Threading issues in AsyncSpeedTestRunner or ScheduledTestRunner
+- SQLite transaction safety in TestResultStorage operations
+- speedtest-cli error handling in SpeedTestEngine
+- Kivy/KivyMD UI responsiveness during long operations
+- Configuration validation edge cases in SpeedTestConfig
+- Memory leaks in long-running scheduled testing scenarios
