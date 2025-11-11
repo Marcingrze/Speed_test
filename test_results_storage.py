@@ -9,6 +9,7 @@ with export functionality and historical analysis.
 import json
 import sqlite3
 import csv
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
