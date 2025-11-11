@@ -8,6 +8,7 @@ Provides schema validation and type checking for speedtest configuration.
 from typing import Dict, Any, List, Tuple, Union
 import json
 from pathlib import Path
+from speedtest_core import SpeedTestConfig
 
 
 class ConfigValidator:
@@ -73,6 +74,16 @@ class ConfigValidator:
             'description': 'Show detailed progress information'
         }
     }
+
+    # Synchronize numeric ranges with SpeedTestConfig to avoid drift
+    try:
+        for _key, (_min, _max) in SpeedTestConfig.VALIDATION_RULES.items():
+            if _key in SCHEMA:
+                SCHEMA[_key]['min'] = _min
+                SCHEMA[_key]['max'] = _max
+    except Exception:
+        # If SpeedTestConfig is unavailable for any reason, keep local schema
+        pass
     
     @classmethod
     def validate_config(cls, config: Dict[str, Any]) -> Tuple[bool, List[str]]:
@@ -177,19 +188,8 @@ class ConfigValidator:
         """Create a valid configuration template with default values."""
         template = {}
         
-        # Default values based on schema
-        defaults = {
-            'bits_to_mbps': 1_000_000,
-            'connectivity_check_timeout': 10,
-            'speedtest_timeout': 60,
-            'max_retries': 3,
-            'retry_delay': 2,
-            'max_typical_speed_gbps': 1,
-            'max_reasonable_speed_gbps': 10,
-            'max_typical_ping_ms': 1000,
-            'max_reasonable_ping_ms': 10000,
-            'show_detailed_progress': True
-        }
+        # Use defaults from SpeedTestConfig to ensure a single source of truth
+        defaults = SpeedTestConfig.DEFAULT_CONFIG
         
         for key in cls.SCHEMA.keys():
             template[key] = defaults.get(key)
