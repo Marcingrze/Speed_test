@@ -92,7 +92,8 @@ class SpeedTestConfig:
         'max_reasonable_speed_gbps': 10,
         'max_typical_ping_ms': 1000,
         'max_reasonable_ping_ms': 10000,
-        'show_detailed_progress': True
+        'show_detailed_progress': True,
+        'save_results_to_database': True
     }
     
     # Configuration validation rules
@@ -126,7 +127,7 @@ class SpeedTestConfig:
         Raises:
             ValueError: If value is invalid
         """
-        if key == 'show_detailed_progress':
+        if key in ('show_detailed_progress', 'save_results_to_database'):
             if not isinstance(value, bool):
                 raise ValueError(f"'{key}' must be a boolean, got {type(value).__name__}")
             return value

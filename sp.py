@@ -12,6 +12,7 @@ import sys
 from typing import Optional
 
 from speedtest_core import SpeedTestEngine, SpeedTestConfig, SpeedTestResult
+from test_results_storage import TestResultStorage
 
 
 def create_sample_config() -> None:
@@ -74,6 +75,16 @@ def main() -> int:
 
     # Display formatted results
     format_and_display_results(result, config['bits_to_mbps'])
+
+    # Save results to database if enabled
+    if config.get('save_results_to_database', True):
+        try:
+            storage = TestResultStorage()
+            record_id = storage.save_result(result)
+            print(f"\nResult saved to database (ID: {record_id})")
+        except Exception as e:
+            print(f"\nWarning: Failed to save result to database: {e}")
+
     return 0
 
 

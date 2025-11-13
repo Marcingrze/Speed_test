@@ -8,5 +8,6 @@
   "max_reasonable_speed_gbps": 10,
   "max_typical_ping_ms": 1000,
   "max_reasonable_ping_ms": 10000,
-  "show_detailed_progress": true
+  "show_detailed_progress": true,
+  "save_results_to_database": true
 }

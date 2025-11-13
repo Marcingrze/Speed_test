@@ -12,17 +12,35 @@ Internet speed testing tool with CLI and GUI interfaces. Uses speedtest.net to m
 # Setup
 make setup          # Create venv and install dependencies
 make dev-setup      # Add pytest, black, flake8, mypy
+make install        # Install executable scripts system-wide (requires sudo)
+make install-user   # Install for current user only (~/.local/bin)
 
 # Run
-make run-cli        # CLI interface
-make run-gui        # GUI interface
-make run-scheduler  # Background scheduler
+make run-cli        # CLI interface (direct Python)
+make run-gui        # GUI interface (direct Python)
+make run-scheduler  # Background scheduler (direct Python)
+
+# After installation, you can also run:
+speedtest-cli       # Installed CLI command
+speedtest-gui       # Installed GUI command
+speedtest-scheduler # Installed scheduler command
 
 # Test & Quality
-make test           # Quick functionality tests
-make test-full      # Complete test suite
-make lint           # Run flake8
-make format         # Format with black
+make test           # Quick functionality tests (test_installation.py --quick)
+make test-full      # Complete test suite (test_installation.py)
+make test-offline   # Tests without network (test_installation.py --no-network)
+make lint           # Run flake8 (ignores E501, max-line-length=100)
+make format         # Format with black (line-length=100)
+
+# Direct test runs (after setup)
+./speedtest_env/bin/python3 test_installation.py --quick
+./speedtest_env/bin/python3 test_config_validation.py
+
+# Maintenance
+make update         # Update dependencies (reapplies Python 3.13 patch)
+make backup         # Backup config and database
+make restore        # Restore from latest backup
+make clean          # Clean temporary files
 ```
 
 ## Architecture
@@ -68,6 +86,21 @@ SpeedTestConfig → SpeedTestEngine → SpeedTestResult
 - Graceful shutdown with signal handlers
 - Persists results via TestResultStorage
 
+**install.py** - Installation script
+- Creates executable wrappers for CLI/GUI/scheduler
+- Supports system-wide (/usr/local/bin) or user (~/.local/bin) installation
+- Auto-creates venv, installs dependencies, applies Python 3.13 patch
+- Platform-aware: detects Unix/Windows, adjusts paths accordingly
+
+**uninstall.py** - Uninstallation script
+- Removes installed executables
+- Optionally removes config and database (--remove-all flag)
+
+**config_validator.py** - Configuration schema validation
+- Imports SpeedTestConfig.VALIDATION_RULES to stay in sync
+- Validates types, ranges, and required fields
+- Detects drift between schema and core config
+
 ## Configuration System
 
 Config loaded from `speedtest_config.json` (falls back to defaults if missing):
@@ -78,11 +111,40 @@ Config loaded from `speedtest_config.json` (falls back to defaults if missing):
 
 Key settings: timeouts, retry logic, validation thresholds (typical vs reasonable speeds/pings)
 
+## Test Result Storage
+
+All interfaces (CLI, GUI, scheduler) can persist results to SQLite database (`speedtest_history.db`):
+
+**Database schema** (`test_results_storage.py`):
+- Timestamps (indexed), download/upload speeds, ping, server info, validation status, warnings
+- WAL journal mode for concurrent access
+- Busy timeout: 5 seconds
+
+**Export capabilities**:
+- CSV: `TestResultStorage.export_to_csv(filename, days=None)`
+- JSON: `TestResultStorage.export_to_json(filename, days=None)`
+- Statistics: `get_statistics(days=None)` returns min/max/avg/median for speeds and ping
+
+**Configuration** (`save_results_to_database`):
+- Enabled by default (`true` in `speedtest_config.json`)
+- When enabled, all successful test results are automatically saved to database
+- CLI shows: "Result saved to database (ID: <record_id>)" after successful test
+- GUI silently saves results (prints to console if KIVY_NO_CONSOLELOG is not set)
+- Scheduler always saves results regardless of this setting
+
+**Usage**:
+- CLI: Results saved automatically after each successful test
+- GUI: Results saved automatically in `handle_test_result()` after successful test
+- Scheduler: Results saved via `TestResultStorage.save_result()` after each test
+- Disable by setting `"save_results_to_database": false` in config file
+
 ## Dependencies
 
+- **Python 3.8+**: Required by Pillow 12.0.0 and Kivy 2.3.1 (README mentions 3.6+ but this is outdated)
 - **speedtest-cli 2.1.3**: Requires Python 3.13 patch via `fix_speedtest_py313.py`
 - **Kivy 2.3.1 + KivyMD 1.2.0**: GUI framework (Material Design)
-- **Python**: Pillow 12 and Kivy require 3.8+, not 3.6 (docs may be outdated)
+- **Pillow 12.0.0**: Image processing for Kivy (requires Python 3.8+)
+- **SQLite3**: Built into Python, used for test result storage
 
 ## Critical Implementation Patterns
 
@@ -123,14 +185,42 @@ Key settings: timeouts, retry logic, validation thresholds (typical vs reasonabl
 
 ## Code Review Guidelines
 
-This project includes custom slash commands for Continue CLI and Claude Code:
-- **Continue**: `/review` command defined in `.continue/rules/review.md`
-- **Claude Code**: `python-code-reviewer` agent in `.claude/agents/`
+This project includes custom code review configurations:
 
-When reviewing code, focus on:
-- Thread safety (GUI callbacks, queue handling, Clock scheduling)
-- Config validation consistency between `SpeedTestConfig.VALIDATION_RULES` and `config_validator.py`
-- SQLite connection management and index usage
-- Python 3.13 compatibility (AttributeError handling)
-- Network retry strategy and cancellation UX
-- Resource cleanup (connections, file handles, threads)
+**For Continue CLI**: Use `/review` slash command
+- Defined in `.continue/rules/review.md`
+- Covers version compatibility, retry logic, concurrency, validation, and more
+- Provides specific project-aware review criteria
+
+**For Claude Code**: Use `python-code-reviewer` agent
+- Defined in `.claude/agents/python-code-reviewer.md`
+- Automatically invoked after significant code changes
+- Multi-layered analysis with severity classification (CRITICAL → NICE TO HAVE)
+- Checks functionality, correctness, security, performance, maintainability
+
+### Key Review Focus Areas
+
+Thread safety and concurrency:
+- GUI callbacks and queue handling (AsyncSpeedTestRunner)
+- Kivy Clock event scheduling and cleanup
+- SQLite WAL mode and busy timeout handling
+
+Configuration management:
+- Consistency between `SpeedTestConfig.VALIDATION_RULES` and `config_validator.py`
+- The validator imports VALIDATION_RULES to detect drift
+- File locking: fcntl on Unix (shared locks), msvcrt on Windows (exclusive only)
+
+Python 3.13 compatibility:
+- Broad `AttributeError` catching for fileno() issues
+- `KIVY_NO_CONSOLELOG=1` environment variable for GUI
+- Automatic patch application via `fix_speedtest_py313.py`
+
+Error handling patterns:
+- Fixed retry delay (consider exponential backoff for improvements)
+- Cancellation returns invalid result (callers check `is_valid`)
+- Network error categorization (connectivity, timeout, validation)
+
+Resource management:
+- Connection cleanup (network sockets, file handles)
+- Thread lifecycle (join with timeout, daemon threads)
+- SQLite connection reuse via context managers

@@ -35,6 +35,7 @@ from kivy.lang import Builder
 from kivy.properties import StringProperty, NumericProperty, BooleanProperty
 
 from speedtest_core import SpeedTestEngine, SpeedTestConfig, AsyncSpeedTestRunner
+from test_results_storage import TestResultStorage
 
 
 KV = '''
@@ -287,16 +288,17 @@ class SpeedTestMainScreen(MDScreen):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        
+
         # Initialize core components
         self.config = SpeedTestConfig()
         self.engine = SpeedTestEngine(self.config)
         self.async_runner = AsyncSpeedTestRunner(self.engine)
-        
+        self.storage = TestResultStorage()
+
         # UI state
         self.update_event = None
         self.settings_dialog = None
-        
+
         # Check initial network status
         Clock.schedule_once(self.check_initial_network, 1)
     
@@ -405,6 +407,14 @@ class SpeedTestMainScreen(MDScreen):
             self.show_results_card()
 
             self.status_text = "Test completed successfully"
+
+            # Save results to database if enabled
+            if self.config.get('save_results_to_database', True):
+                try:
+                    record_id = self.storage.save_result(result)
+                    print(f"Result saved to database (ID: {record_id})")
+                except Exception as e:
+                    print(f"Warning: Failed to save result to database: {e}")
 
             # Show warnings if any
             if result.warnings:

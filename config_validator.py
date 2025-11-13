@@ -72,6 +72,10 @@ class ConfigValidator:
         'show_detailed_progress': {
             'type': bool,
             'description': 'Show detailed progress information'
+        },
+        'save_results_to_database': {
+            'type': bool,
+            'description': 'Save test results to SQLite database'
         }
     }
 
@@ -94,7 +98,7 @@ class ConfigValidator:
         # Verify all schema keys exist in core config
         for key in cls.SCHEMA:
             if key not in SpeedTestConfig.DEFAULT_CONFIG:
-                if key == 'show_detailed_progress':
+                if key in ('show_detailed_progress', 'save_results_to_database'):
                     continue  # Boolean keys don't have VALIDATION_RULES
                 error = f"DRIFT ERROR: ConfigValidator.SCHEMA has '{key}' not in SpeedTestConfig"
                 warnings.append(error)
