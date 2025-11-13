@@ -1,0 +1,23 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "noreply@speedtest.local",
+                "Name": "Speed Test Team"
+            }
+        ],
+        "Category": "System Information",
+        "Description": "Internet speed test widget showing download, upload speeds and ping",
+        "Icon": "network-wired",
+        "Id": "org.kde.plasma.speedtest",
+        "License": "MIT",
+        "Name": "Speed Test",
+        "Version": "1.0.0",
+        "Website": "https://github.com/speedtest"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API": "declarativeappletscript",
+    "X-Plasma-MainScript": "ui/main.qml",
+    "X-Plasma-Provides": ["org.kde.plasma.speedtest"],
+    "X-KDE-PluginInfo-Name": "org.kde.plasma.speedtest"
+}

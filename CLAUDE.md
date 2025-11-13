@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Internet speed testing tool with CLI and GUI interfaces. Uses speedtest.net to measure download/upload speeds and ping latency. Includes scheduled testing, SQLite result storage, and data export capabilities.
+Internet speed testing tool with multiple interfaces: CLI, GUI (KivyMD), and KDE Plasma widget. Uses speedtest.net to measure download/upload speeds and ping latency. Includes scheduled testing, SQLite result storage, and data export capabilities.
 
 ## Quick Start
 
@@ -41,6 +41,11 @@ make update         # Update dependencies (reapplies Python 3.13 patch)
 make backup         # Backup config and database
 make restore        # Restore from latest backup
 make clean          # Clean temporary files
+
+# KDE Plasma Widget
+make install-plasmoid   # Install KDE Plasma desktop widget
+make uninstall-plasmoid # Uninstall Plasma widget
+make restart-plasma     # Restart Plasma Shell
 ```
 
 ## Architecture
@@ -51,12 +56,12 @@ make clean          # Clean temporary files
 ```
 SpeedTestConfig → SpeedTestEngine → SpeedTestResult
                        ↓
-      ┌────────────────┼────────────────┐
-      ↓                ↓                ↓
-    CLI (sp.py)    GUI (async)    Scheduler
-                       ↓                ↓
-                 Progress        TestResultStorage
-                 Callbacks           (SQLite)
+      ┌────────────────┼────────────────┬────────────────┐
+      ↓                ↓                ↓                ↓
+   CLI (sp.py)    GUI (async)     Scheduler      KDE Widget (QML)
+                      ↓                ↓                ↓
+                Progress        TestResultStorage   Helper Script
+                Callbacks           (SQLite)        (Python→DB)
 ```
 
 ### Key Modules
@@ -100,6 +105,14 @@ SpeedTestConfig → SpeedTestEngine → SpeedTestResult
 - Imports SpeedTestConfig.VALIDATION_RULES to stay in sync
 - Validates types, ranges, and required fields
 - Detects drift between schema and core config
+
+**plasma-widget/** - KDE Plasma desktop widget
+- **org.kde.plasma.speedtest/metadata.json**: Widget metadata and KDE integration
+- **contents/ui/main.qml**: QML interface with full and compact representations
+- **contents/code/speedtest_helper.py**: Python backend (gets DB results, runs tests, checks network)
+- Communicates via JSON over PlasmaCore.DataSource executable engine
+- Auto-refreshes every 30 seconds, one-click test execution
+- Works in desktop or panel mode with tooltips
 
 ## Configuration System
 

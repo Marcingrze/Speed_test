@@ -1,6 +1,6 @@
 # Internet Speed Test Tool
 
-Narzędzie do testowania prędkości połączenia internetowego z zaawansowaną obsługą błędów, konfiguracją i walidacją wyników. Dostępne jako aplikacja konsolowa i graficzny interfejs użytkownika (GUI).
+Narzędzie do testowania prędkości połączenia internetowego z zaawansowaną obsługą błędów, konfiguracją i walidacją wyników. Dostępne jako aplikacja konsolowa (CLI), graficzny interfejs użytkownika (GUI) oraz widget KDE Plasma.
 
 ## 📋 Opis
 
@@ -11,7 +11,7 @@ To jest profesjonalne narzędzie do testowania prędkości internetu napisane w 
 
 ### ✨ Główne funkcjonalności
 
-- **Dwa interfejsy** - konsola (CLI) i graficzny interfejs (GUI)
+- **Trzy interfejsy** - konsola (CLI), graficzny interfejs (GUI KivyMD) i widget KDE Plasma
 - **Zaawansowana obsługa błędów** - automatyczne ponowne próby przy przejściowych problemach sieciowych
 - **Elastyczna konfiguracja** - wszystkie parametry można dostosować przez plik JSON
 - **Walidacja wyników** - inteligentne ostrzeżenia o nieprawdopodobnych wynikach
@@ -19,6 +19,8 @@ To jest profesjonalne narzędzie do testowania prędkości internetu napisane w 
 - **Sprawdzenie łączności** - wstępna weryfikacja połączenia internetowego
 - **Przyjazny interfejs** - czytelny wyświetlacz wyników z formatowaniem
 - **Modern Material Design** - nowoczesny GUI z animacjami i responsywnym designem
+- **Widget na pulpicie KDE** - lekki widget Plasma z automatycznym odświeżaniem
+- **Historia wyników** - zapisywanie testów w bazie SQLite z eksportem do CSV/JSON
 
 ## 🚀 Szybki start
 
@@ -95,6 +97,46 @@ python speedtest_gui.py
 - **Asynchronous testing** - testy działają w tle bez blokowania interfejsu
 - **Progress callbacks** - real-time aktualizacje postępu
 - **Thread safety** - bezpieczne operacje wielowątkowe
+
+## 🖥️ Widget KDE Plasma
+
+Widget na pulpit KDE Plasma wyświetlający wyniki testów prędkości.
+
+### Funkcjonalności Widget
+
+- **Wyświetlanie wyników** - pokazuje prędkość pobierania, wysyłania i ping
+- **Automatyczne odświeżanie** - aktualizacja co 30 sekund
+- **Uruchamianie testów** - przycisk do szybkiego uruchomienia nowego testu
+- **Status sieci** - wskaźnik połączenia internetowego
+- **Tryb kompaktowy** - może być dodany do panelu z tooltip
+- **Integracja z bazą** - korzysta z wspólnej bazy danych SQLite
+
+### Instalacja Widget
+
+```bash
+# Instalacja widget
+make install-plasmoid
+
+# Lub ręcznie
+cd plasma-widget
+./install_plasmoid.sh
+```
+
+### Dodawanie do pulpitu
+
+1. Kliknij prawym przyciskiem myszy na pulpit
+2. Wybierz **"Dodaj widgety"**
+3. Wyszukaj **"Speed Test"**
+4. Przeciągnij widget na pulpit lub panel
+
+### Użycie Widget
+
+- **Zobacz wyniki**: Widget wyświetla ostatnie wyniki z bazy danych
+- **Uruchom test**: Kliknij przycisk "Run Speed Test"
+- **Odśwież**: Ikona odświeżania ręcznie aktualizuje wyniki
+- **Tryb panelu**: Dodaj do panelu aby mieć szybki podgląd
+
+Więcej informacji w [plasma-widget/README.md](plasma-widget/README.md)
 
 ## ⚙️ Konfiguracja
 

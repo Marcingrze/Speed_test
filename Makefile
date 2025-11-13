@@ -30,6 +30,11 @@ help:
 	@echo "  make update        - Update dependencies"
 	@echo "  make backup        - Backup configuration and data"
 	@echo "  make restore       - Restore from backup"
+	@echo ""
+	@echo "KDE Plasma Widget:"
+	@echo "  make install-plasmoid   - Install KDE Plasma widget"
+	@echo "  make uninstall-plasmoid - Uninstall KDE Plasma widget"
+	@echo "  make restart-plasma     - Restart Plasma Shell"
 
 # Setup virtual environment and install dependencies
 setup:
@@ -220,3 +225,25 @@ deploy:
 logs:
 	@echo "Recent speed test logs:"
 	@if [ -f speedtest.log ]; then tail -20 speedtest.log; else echo "No log file found"; fi
+
+# KDE Plasma Widget management
+install-plasmoid:
+	@echo "Installing KDE Plasma widget..."
+	cd plasma-widget && ./install_plasmoid.sh
+	@echo "✓ Plasmoid installed. Add it from 'Add Widgets' menu"
+
+uninstall-plasmoid:
+	@echo "Uninstalling KDE Plasma widget..."
+	cd plasma-widget && ./uninstall_plasmoid.sh
+	@echo "✓ Plasmoid uninstalled"
+
+restart-plasma:
+	@echo "Restarting Plasma Shell..."
+	@if command -v kquitapp5 >/dev/null 2>&1; then \
+		kquitapp5 plasmashell && kstart5 plasmashell & \
+	elif command -v kquitapp6 >/dev/null 2>&1; then \
+		kquitapp6 plasmashell && kstart6 plasmashell & \
+	else \
+		echo "Error: KDE Plasma not found"; \
+	fi
+	@echo "✓ Plasma Shell restarted"
