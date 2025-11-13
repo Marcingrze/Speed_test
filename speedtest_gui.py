@@ -409,12 +409,20 @@ class SpeedTestMainScreen(MDScreen):
             self.status_text = "Test completed successfully"
 
             # Save results to database if enabled
-            if self.config.get('save_results_to_database', True):
+            if self.config['save_results_to_database']:
                 try:
                     record_id = self.storage.save_result(result)
-                    print(f"Result saved to database (ID: {record_id})")
+                    print(f"Result saved to database (ID: {record_id}).")
                 except Exception as e:
-                    print(f"Warning: Failed to save result to database: {e}")
+                    error_msg = f"Failed to save result to database: {e}"
+                    print(f"Warning: {error_msg}")
+                    # Show user-facing error notification
+                    Snackbar(
+                        text=f"Warning: {error_msg}",
+                        snackbar_x="10dp",
+                        snackbar_y="10dp",
+                        bg_color=(0.8, 0.4, 0, 1)  # Orange warning color
+                    ).open()
 
             # Show warnings if any
             if result.warnings:
@@ -453,13 +461,25 @@ class SpeedTestMainScreen(MDScreen):
                 # First try gentle cancellation
                 self.async_runner.cancel_test()
                 try:
-                    # Calculate worst-case timeout accounting for retry logic with exponential backoff
+                    # Calculate worst-case timeout for thread cleanup
+                    # Components:
+                    # 1. Test execution time per retry: base_timeout * max_retries
+                    # 2. Exponential backoff delays between retries (capped at 30s each)
+                    # 3. Safety buffer for cleanup
+
                     base_timeout = self.config.get('speedtest_timeout', 60)
                     max_retries = self.config.get('max_retries', 3)
-                    retry_delay = self.config.get('retry_delay', 2)
-                    # Worst case: base_timeout * retries + exponential backoff delays + buffer
-                    # Exponential backoff: 2s, 4s, 8s for 3 retries = ~14s max
-                    timeout = (base_timeout + retry_delay * 2 ** (max_retries - 1)) * max_retries + 10
+                    retry_delay_base = self.config.get('retry_delay', 2)
+
+                    # Sum of all possible backoff delays (capped at 30s per delay)
+                    total_backoff = sum(
+                        min(retry_delay_base * (2 ** i), 30)
+                        for i in range(max_retries - 1)  # -1 because no delay after last retry
+                    )
+
+                    # Total timeout = all retries + all backoffs + buffer
+                    timeout = (base_timeout * max_retries) + total_backoff + 10
+
                     self.async_runner._thread.join(timeout=timeout)
                     if self.async_runner._thread.is_alive():
                         # Log warning but don't force - daemon thread will clean up
@@ -490,12 +510,15 @@ class SpeedTestMainScreen(MDScreen):
     
     def show_settings_dialog(self):
         """Show settings configuration dialog with proper lifecycle management."""
-        # Properly cleanup existing dialog before creating new one
+        # Prevent multiple simultaneous dialogs
         if self.settings_dialog:
+            if hasattr(self.settings_dialog, '_is_dismissing'):
+                return  # Already dismissing, ignore request
+            self.settings_dialog._is_dismissing = True
             self.settings_dialog.dismiss()
             self.settings_dialog = None
             # Allow one frame for Kivy to complete cleanup
-            Clock.schedule_once(lambda dt: self._create_settings_dialog(), 0)
+            Clock.schedule_once(lambda dt: self._create_settings_dialog(), 0.1)
         else:
             self._create_settings_dialog()
 

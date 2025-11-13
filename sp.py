@@ -77,13 +77,24 @@ def main() -> int:
     format_and_display_results(result, config['bits_to_mbps'])
 
     # Save results to database if enabled
-    if config.get('save_results_to_database', True):
+    if config['save_results_to_database']:
+        storage = None
         try:
             storage = TestResultStorage()
             record_id = storage.save_result(result)
-            print(f"\nResult saved to database (ID: {record_id})")
+            print(f"\nResult saved to database (ID: {record_id}).")
         except Exception as e:
             print(f"\nWarning: Failed to save result to database: {e}")
+            # Log full exception for debugging
+            import traceback
+            traceback.print_exc()
+        finally:
+            # Ensure cleanup even if storage creation failed
+            if storage and hasattr(storage, 'close'):
+                try:
+                    storage.close()
+                except Exception:
+                    pass  # Ignore cleanup errors
 
     return 0
 

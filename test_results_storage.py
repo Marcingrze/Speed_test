@@ -19,11 +19,44 @@ from speedtest_core import SpeedTestResult
 
 
 class TestResultStorage:
-    """Handles storage and retrieval of speed test results."""
-    
+    """Handles storage and retrieval of speed test results with connection pooling."""
+
     def __init__(self, db_path: str = "speedtest_history.db"):
         self.db_path = Path(db_path)
+        self._conn: Optional[sqlite3.Connection] = None
         self.init_database()
+
+    def _get_connection(self) -> sqlite3.Connection:
+        """Get or create database connection with connection pooling.
+
+        Returns:
+            Active SQLite connection
+        """
+        if self._conn is None:
+            self._conn = sqlite3.connect(self.db_path)
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA busy_timeout=5000")
+            self._conn.row_factory = sqlite3.Row
+        return self._conn
+
+    def close(self) -> None:
+        """Close database connection."""
+        if self._conn:
+            try:
+                self._conn.close()
+            except Exception:
+                pass  # Ignore close errors
+            finally:
+                self._conn = None
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit with cleanup."""
+        self.close()
+        return False
     
     def init_database(self) -> None:
         """Initialize SQLite database with results table."""

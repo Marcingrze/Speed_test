@@ -96,9 +96,10 @@ class ConfigValidator:
                 print(f"ERROR: {error}")
 
         # Verify all schema keys exist in core config
+        boolean_keys = ('show_detailed_progress', 'save_results_to_database')
         for key in cls.SCHEMA:
             if key not in SpeedTestConfig.DEFAULT_CONFIG:
-                if key in ('show_detailed_progress', 'save_results_to_database'):
+                if key in boolean_keys:
                     continue  # Boolean keys don't have VALIDATION_RULES
                 error = f"DRIFT ERROR: ConfigValidator.SCHEMA has '{key}' not in SpeedTestConfig"
                 warnings.append(error)
