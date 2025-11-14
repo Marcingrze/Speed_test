@@ -1,15 +1,15 @@
-import QtQuick 2.15
-import QtQuick.Layouts 1.15
-import org.kde.plasma.core 2.0 as PlasmaCore
-import org.kde.plasma.plasmoid 2.0
-import org.kde.plasma.components 3.0 as PlasmaComponents3
-import org.kde.kirigami 2.20 as Kirigami
+import QtQuick
+import QtQuick.Layouts
+import org.kde.plasma.plasmoid
+import org.kde.plasma.components as PlasmaComponents
+import org.kde.kirigami as Kirigami
+import Qt.labs.platform as Platform
+import org.kde.plasma.plasma5support as Plasma5Support
 
 PlasmoidItem {
     id: root
 
     // Size hints
-    Plasmoid.backgroundHints: PlasmaCore.Types.DefaultBackground | PlasmaCore.Types.ConfigurableBackground
     preferredRepresentation: fullRepresentation
 
     width: Kirigami.Units.gridUnit * 18
@@ -26,7 +26,35 @@ PlasmoidItem {
     property bool networkConnected: true
 
     // Helper script path
-    property string helperScript: Qt.resolvedUrl("../code/speedtest_helper.py").replace("file://", "")
+    property string helperScript: Qt.resolvedUrl("../code/speedtest_helper.py").toString().replace("file://", "")
+    property string helperWrapper: Qt.resolvedUrl("../code/run_helper.sh").toString().replace("file://", "")
+    property string pythonCmd: "python3"
+
+    // Helper DataSource to execute helper script (Plasma 5/6)
+    Plasma5Support.DataSource {
+        id: helperDS
+        engine: "executable"
+        connectedSources: []
+        interval: 0
+
+        onNewData: function (sourceName, data) {
+            var stdout = data["stdout"] || ""
+            try {
+                var result = JSON.parse(stdout)
+                applyResult(result)
+            } catch (e) {
+                logger.info("Failed to parse helper output: " + e)
+            }
+            // disconnect to avoid repeated triggers
+            disconnectSource(sourceName)
+        }
+
+        function run(command) {
+            var cmd = helperWrapper + " " + command
+            // Use /bin/sh -c to ensure script runs with shell
+            connectSource("/bin/sh -c '" + cmd + "'")
+        }
+    }
 
     // Timer for auto-refresh
     Timer {
@@ -44,97 +72,81 @@ PlasmoidItem {
     }
 
     // Functions
+    function applyResult(result) {
+        if (!result)
+            return
+        if (result.status === "success") {
+            downloadSpeed = result.download + " Mbps"
+            uploadSpeed = result.upload + " Mbps"
+            pingLatency = result.ping + " ms"
+            serverInfo = result.server || "Speed test server"
+            lastUpdate = result.timestamp || "Unknown"
+            hasData = true
+            networkConnected = true
+        } else if (result.status === "no_data") {
+            serverInfo = result.message || "No data available"
+            hasData = false
+        } else if (result.status === "error") {
+            serverInfo = "Error: " + (result.message || "Unknown error")
+            hasData = false
+        } else if (typeof result.connected !== "undefined") {
+            networkConnected = result.connected
+        }
+    }
+
     function loadLastResult() {
-        var process = PlasmaCore.DataSource
-        executeCommand("python3", [helperScript, "get_last"], function(output) {
-            try {
-                var result = JSON.parse(output)
-                if (result.status === "success") {
-                    downloadSpeed = result.download + " Mbps"
-                    uploadSpeed = result.upload + " Mbps"
-                    pingLatency = result.ping + " ms"
-                    serverInfo = result.server
-                    lastUpdate = result.timestamp
-                    hasData = true
-                } else if (result.status === "no_data") {
-                    serverInfo = result.message
-                    hasData = false
-                } else {
-                    serverInfo = "Error: " + result.message
-                    hasData = false
-                }
-            } catch (e) {
-                serverInfo = "Parse error: " + e
-                hasData = false
-            }
-        })
+        // Load result from database via helper script
+        runHelperCommand("get_last")
     }
 
     function runTest() {
+        // Trigger background test via helper; widget will auto-refresh
+        helperDS.run("run_test")
         isRunning = true
-        executeCommand("python3", [helperScript, "run_test"], function(output) {
-            try {
-                var result = JSON.parse(output)
-                if (result.status === "success") {
-                    // Wait a moment then reload results
-                    Qt.callLater(function() {
-                        isRunning = false
-                        // Test takes time, so schedule refresh after delay
-                        loadTimer.start()
-                    })
-                } else {
-                    isRunning = false
-                    serverInfo = "Error: " + result.message
-                }
-            } catch (e) {
-                isRunning = false
-                serverInfo = "Error: " + e
-            }
-        })
+        loadTimer.start()
     }
 
     function checkNetwork() {
-        executeCommand("python3", [helperScript, "check_network"], function(output) {
-            try {
-                var result = JSON.parse(output)
-                networkConnected = result.connected || false
-            } catch (e) {
-                networkConnected = false
-            }
-        })
+        helperDS.run("check_network")
     }
 
-    // Helper to execute command
-    function executeCommand(program, args, callback) {
-        var process = Qt.createQmlObject('
-            import QtQuick 2.0
-            import org.kde.plasma.core 2.0 as PlasmaCore
-            PlasmaCore.DataSource {
-                id: executable
-                engine: "executable"
-                connectedSources: []
-                onNewData: {
-                    var stdout = data["stdout"]
-                    disconnectSource(sourceName)
-                    callback(stdout)
-                }
-                function exec(cmd) {
-                    connectSource(cmd)
-                }
-            }
-        ', root);
-        var cmd = program + " " + args.join(" ")
-        process.exec(cmd)
+    // Helper to run Python script using shell wrapper
+    function runHelperCommand(command) {
+        helperDS.run(command)
     }
+
+    // Logger function for debugging
+    function logger_info(msg) {
+        console.log("[SpeedTest Widget] " + msg)
+    }
+    property var logger: ({ info: logger_info })
 
     // Timer to reload after test completes
     Timer {
         id: loadTimer
-        interval: 60000  // Wait 60 seconds for test to complete
+        interval: 5000  // Check every 5 seconds
         running: false
-        repeat: false
+        repeat: true
+        triggeredOnStart: false
+
+        property int checkCount: 0
+        property int maxChecks: 24  // 2 minutes max (24 * 5 seconds)
+
         onTriggered: {
             loadLastResult()
+            checkCount++
+
+            // Stop checking after max attempts or when test completes
+            if (checkCount >= maxChecks || (!isRunning && hasData)) {
+                stop()
+                checkCount = 0
+                isRunning = false
+            }
+        }
+
+        function start() {
+            checkCount = 0
+            running = true
         }
     }
 
@@ -153,10 +165,10 @@ PlasmoidItem {
                 Layout.fillWidth: true
             }
 
-            PlasmaComponents3.ToolButton {
+            PlasmaComponents.ToolButton {
                 icon.name: "view-refresh"
                 onClicked: loadLastResult()
-                PlasmaComponents3.ToolTip {
+                PlasmaComponents.ToolTip {
                     text: "Refresh results"
                 }
             }
@@ -174,7 +186,7 @@ PlasmoidItem {
                 height: width
             }
 
-            PlasmaComponents3.Label {
+            PlasmaComponents.Label {
                 text: "No network connection"
                 color: Kirigami.Theme.negativeTextColor
                 font.pointSize: Kirigami.Theme.smallFont.pointSize
@@ -199,13 +211,13 @@ PlasmoidItem {
                 Layout.fillWidth: true
                 spacing: Kirigami.Units.smallSpacing
 
-                PlasmaComponents3.Label {
+                PlasmaComponents.Label {
                     text: "Download"
                     font.pointSize: Kirigami.Theme.smallFont.pointSize
                     color: Kirigami.Theme.disabledTextColor
                 }
 
-                PlasmaComponents3.Label {
+                PlasmaComponents.Label {
                     text: root.downloadSpeed
                     font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.5
                     font.bold: true
@@ -226,13 +238,13 @@ PlasmoidItem {
                 Layout.fillWidth: true
                 spacing: Kirigami.Units.smallSpacing
 
-                PlasmaComponents3.Label {
+                PlasmaComponents.Label {
                     text: "Upload"
                     font.pointSize: Kirigami.Theme.smallFont.pointSize
                     color: Kirigami.Theme.disabledTextColor
                 }
 
-                PlasmaComponents3.Label {
+                PlasmaComponents.Label {
                     text: root.uploadSpeed
                     font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.5
                     font.bold: true
@@ -254,14 +266,14 @@ PlasmoidItem {
                 Layout.fillWidth: true
                 spacing: Kirigami.Units.smallSpacing
 
-                PlasmaComponents3.Label {
+                PlasmaComponents.Label {
                     text: "Ping"
                     font.pointSize: Kirigami.Theme.smallFont.pointSize
                     color: Kirigami.Theme.disabledTextColor
                     Layout.alignment: Qt.AlignHCenter
                 }
 
-                PlasmaComponents3.Label {
+                PlasmaComponents.Label {
                     text: root.pingLatency
                     font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.3
                     font.bold: true
@@ -281,7 +293,7 @@ PlasmoidItem {
             Layout.fillWidth: true
             spacing: Kirigami.Units.smallSpacing
 
-            PlasmaComponents3.Label {
+            PlasmaComponents.Label {
                 text: root.serverInfo
                 font.pointSize: Kirigami.Theme.smallFont.pointSize
                 elide: Text.ElideRight
@@ -289,7 +301,7 @@ PlasmoidItem {
                 horizontalAlignment: Text.AlignHCenter
             }
 
-            PlasmaComponents3.Label {
+            PlasmaComponents.Label {
                 text: "Last update: " + root.lastUpdate
                 font.pointSize: Kirigami.Theme.smallFont.pointSize
                 color: Kirigami.Theme.disabledTextColor
@@ -298,24 +310,36 @@ PlasmoidItem {
             }
         }
 
-        // Run test button
-        PlasmaComponents3.Button {
+        // Info text about running tests
+        PlasmaComponents.Label {
             Layout.fillWidth: true
-            text: isRunning ? "Test Running..." : "Run Speed Test"
-            icon.name: isRunning ? "chronometer" : "media-playback-start"
-            enabled: !isRunning && networkConnected
-            onClicked: runTest()
+            text: "To run a new test, use CLI: make run-cli"
+            font.pointSize: Kirigami.Theme.smallFont.pointSize
+            color: Kirigami.Theme.disabledTextColor
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.WordWrap
+        }
+
+        // Refresh button (widget shows cached results)
+        PlasmaComponents.Button {
+            Layout.fillWidth: true
+            text: "Refresh Results"
+            icon.name: "view-refresh"
+            onClicked: loadLastResult()
+            PlasmaComponents.ToolTip {
+                text: "Reload results from cache.\nRun tests using: cd ~/Projekty/Speed_test && make run-cli"
+            }
         }
     }
 
     // Compact representation (for panel)
-    compactRepresentation: PlasmaComponents3.ToolButton {
+    compactRepresentation: PlasmaComponents.ToolButton {
         icon.name: "network-wired"
         text: hasData ? "↓" + root.downloadSpeed + " ↑" + root.uploadSpeed : "Speed Test"
 
         onClicked: root.expanded = !root.expanded
 
-        PlasmaComponents3.ToolTip {
+        PlasmaComponents.ToolTip {
             text: hasData ?
                   "Download: " + root.downloadSpeed + "\n" +
                   "Upload: " + root.uploadSpeed + "\n" +

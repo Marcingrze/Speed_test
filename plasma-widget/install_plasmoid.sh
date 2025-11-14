@@ -52,11 +52,13 @@ if ! command -v kpackagetool5 &> /dev/null && ! command -v kpackagetool6 &> /dev
 else
     # Use kpackagetool
     KPACKAGETOOL="kpackagetool5"
+    PLASMA_VERSION=5
     if command -v kpackagetool6 &> /dev/null; then
         KPACKAGETOOL="kpackagetool6"
+        PLASMA_VERSION=6
     fi
 
-    echo "Using $KPACKAGETOOL for installation..."
+    echo "Using $KPACKAGETOOL for installation (Plasma $PLASMA_VERSION)..."
 
     # Remove old installation if exists
     if $KPACKAGETOOL --type=Plasma/Applet --show="$WIDGET_NAME" &> /dev/null; then
@@ -66,15 +68,29 @@ else
 
     # Install widget
     echo "Installing widget..."
-    $KPACKAGETOOL --type=Plasma/Applet --install="$SOURCE_DIR"
+    if $KPACKAGETOOL --type=Plasma/Applet --install="$SOURCE_DIR"; then
+        echo "✓ Widget installed successfully"
+    else
+        echo "Installation via kpackagetool failed, trying manual installation..."
+        # Fallback to manual installation
+        mkdir -p "$WIDGET_DIR"
+        cp -r "$SOURCE_DIR"/* "$WIDGET_DIR/"
+        echo "✓ Widget installed manually"
+    fi
 
-    echo "✓ Widget installed successfully"
     echo ""
     echo "To use the widget:"
     echo "  1. Right-click on your desktop or panel"
     echo "  2. Select 'Add Widgets'"
     echo "  3. Search for 'Speed Test'"
     echo "  4. Add it to your desktop or panel"
+    echo ""
+    echo "Note: You may need to restart Plasma for changes to take effect:"
+    if [ "$PLASMA_VERSION" = "6" ]; then
+        echo "  kquitapp6 plasmashell && kstart6 plasmashell"
+    else
+        echo "  kquitapp5 plasmashell && kstart5 plasmashell"
+    fi
 fi
 
 echo ""

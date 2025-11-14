@@ -9,6 +9,7 @@ Lightweight CLI frontend that delegates all business logic to speedtest_core.
 """
 
 import sys
+import json
 from typing import Optional
 
 from speedtest_core import SpeedTestEngine, SpeedTestConfig, SpeedTestResult
@@ -44,37 +45,72 @@ def format_and_display_results(result: SpeedTestResult, bits_to_mbps: int) -> No
 
 def main() -> int:
     """Run CLI speed test using core engine."""
-    print("Internet Speed Test Tool")
-    print("-" * 25)
+    # Simple args parsing (keep CLI lightweight)
+    args = sys.argv[1:]
+    json_output = False
 
     # Initialize config and engine
     config = SpeedTestConfig()
 
-    # Handle --create-config
-    if len(sys.argv) > 1 and sys.argv[1] == "--create-config":
-        create_sample_config()
-        return 0
+    # Handle flags
+    if args:
+        # very simple parsing: support either flag in any single position
+        if "--create-config" in args:
+            create_sample_config()
+            return 0
+        if "--json" in args:
+            json_output = True
+        if "-h" in args or "--help" in args:
+            print("Usage: python sp.py [--create-config] [--json]")
+            return 0
+
+    if not json_output:
+        print("Internet Speed Test Tool")
+        print("-" * 25)
 
     engine = SpeedTestEngine(config)
 
     # Connectivity check
-    print("Checking network connectivity...")
+    if not json_output:
+        print("Checking network connectivity...")
     if not engine.check_network_connectivity():
-        print("Error: No internet connection detected.")
-        print("Please check your network connection and try again.")
+        if json_output:
+            print(json.dumps({
+                "status": "error",
+                "message": "No internet connection detected.",
+                "is_valid": False,
+            }, ensure_ascii=False))
+        else:
+            print("Error: No internet connection detected.")
+            print("Please check your network connection and try again.")
         return 1
-    print("Network connection detected.")
+    if not json_output:
+        print("Network connection detected.")
 
     # Run test with retry
     result = engine.run_speed_test_with_retry()
 
     if not result.is_valid:
         msg = "; ".join(result.warnings) if result.warnings else "Unknown error"
-        print(f"\nSpeed test failed: {msg}")
+        if json_output:
+            print(json.dumps({
+                "status": "error",
+                "message": msg,
+                "warnings": result.warnings,
+                "is_valid": False,
+            }, ensure_ascii=False))
+        else:
+            print(f"\nSpeed test failed: {msg}")
         return 1
 
-    # Display formatted results
-    format_and_display_results(result, config['bits_to_mbps'])
+    # Display results
+    if json_output:
+        print(json.dumps({
+            **result.to_dict(),
+            "status": "success",
+        }, ensure_ascii=False))
+    else:
+        format_and_display_results(result, config['bits_to_mbps'])
 
     # Save results to database if enabled
     if config['save_results_to_database']:
@@ -82,12 +118,14 @@ def main() -> int:
         try:
             storage = TestResultStorage()
             record_id = storage.save_result(result)
-            print(f"\nResult saved to database (ID: {record_id}).")
+            if not json_output:
+                print(f"\nResult saved to database (ID: {record_id}).")
         except Exception as e:
-            print(f"\nWarning: Failed to save result to database: {e}")
-            # Log full exception for debugging
-            import traceback
-            traceback.print_exc()
+            if not json_output:
+                print(f"\nWarning: Failed to save result to database: {e}")
+                # Log full exception for debugging
+                import traceback
+                traceback.print_exc()
         finally:
             # Ensure cleanup even if storage creation failed
             if storage and hasattr(storage, 'close'):
@@ -95,6 +133,37 @@ def main() -> int:
                     storage.close()
                 except Exception:
                     pass  # Ignore cleanup errors
+
+    # Update Plasma widget cache
+    try:
+        from pathlib import Path
+        import json as json_module
+        from datetime import datetime as dt
+
+        cache_dir = Path.home() / '.cache' / 'plasma-speedtest'
+        cache_file = cache_dir / 'widget_cache.json'
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        cache_data = {
+            "status": "success",
+            "download": round(result.download_mbps, 1),
+            "upload": round(result.upload_mbps, 1),
+            "ping": round(result.ping_ms, 0),
+            "server": result.server_info,
+            "timestamp": dt.fromtimestamp(result.timestamp).strftime("%Y-%m-%d %H:%M:%S"),
+            "is_valid": result.is_valid,
+            "warnings": result.warnings
+        }
+
+        with open(cache_file, 'w', encoding='utf-8') as f:
+            json_module.dump(cache_data, f, ensure_ascii=False, indent=2)
+
+        if not json_output:
+            print(f"Widget cache updated: {cache_file}")
+    except Exception as e:
+        # Don't fail if widget cache update fails
+        if not json_output:
+            print(f"Note: Failed to update widget cache: {e}")
 
     return 0
 

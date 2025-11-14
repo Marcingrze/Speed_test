@@ -6,6 +6,7 @@ Provides backend functionality for the Plasma widget:
 - Retrieves last test results from database
 - Triggers new speed tests
 - Returns data in JSON format for QML consumption
+- Maintains cache file for widget to read
 """
 
 import sys
@@ -18,15 +19,26 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 # Setup logging
+log_dir = Path.home() / '.local' / 'share'
+log_dir.mkdir(parents=True, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(Path.home() / '.local' / 'share' / 'plasma_speedtest.log'),
+        logging.FileHandler(log_dir / 'plasma_speedtest.log'),
         logging.StreamHandler(sys.stderr)
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Cache file for widget to read
+CACHE_DIR = Path.home() / '.cache' / 'plasma-speedtest'
+CACHE_FILE = CACHE_DIR / 'widget_cache.json'
+
+def ensure_cache_dir():
+    """Ensure cache directory exists."""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def find_project_root() -> Path:
@@ -117,6 +129,21 @@ def find_python_executable() -> Path:
     return Path("/usr/bin/python3")
 
 
+def write_cache(data: Dict[str, Any]) -> None:
+    """Write data to cache file for widget to read.
+
+    Args:
+        data: Dictionary to write to cache
+    """
+    try:
+        ensure_cache_dir()
+        with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        logger.info(f"Cache updated: {CACHE_FILE}")
+    except Exception as e:
+        logger.error(f"Failed to write cache: {e}", exc_info=True)
+
+
 def get_last_result() -> Dict[str, Any]:
     """Get the most recent test result from database.
 
@@ -124,14 +151,18 @@ def get_last_result() -> Dict[str, Any]:
         Dictionary with test result or error information
     """
     try:
-        storage = TestResultStorage()
+        # Use absolute path to database in project root
+        db_path = parent_dir / "speedtest_history.db"
+        storage = TestResultStorage(str(db_path))
         results = storage.get_recent_results(limit=1)
 
         if not results:
-            return {
+            result_data = {
                 "status": "no_data",
                 "message": "No test results available. Run a test first."
             }
+            write_cache(result_data)
+            return result_data
 
         result = results[0]
         # Convert timestamp to readable format
@@ -146,7 +177,7 @@ def get_last_result() -> Dict[str, Any]:
                 logger.warning(f"Failed to parse warnings JSON: {e}")
                 warnings = [f"Error parsing warnings: {str(e)}"]
 
-        return {
+        result_data = {
             "status": "success",
             "download": round(result['download_mbps'], 1),
             "upload": round(result['upload_mbps'], 1),
@@ -156,12 +187,16 @@ def get_last_result() -> Dict[str, Any]:
             "is_valid": result['is_valid'],
             "warnings": warnings
         }
+        write_cache(result_data)
+        return result_data
     except Exception as e:
         logger.error(f"Failed to retrieve results: {e}", exc_info=True)
-        return {
+        error_data = {
             "status": "error",
             "message": f"Failed to retrieve results: {str(e)}"
         }
+        write_cache(error_data)
+        return error_data
 
 
 def run_test_background() -> Dict[str, Any]:
@@ -237,6 +272,9 @@ def check_connectivity() -> Dict[str, Any]:
         config = SpeedTestConfig()
         engine = SpeedTestEngine(config)
         is_connected = engine.check_network_connectivity()
+
+        # Don't overwrite existing test results, just log connectivity
+        logger.info(f"Network connectivity check: {is_connected}")
 
         return {
             "status": "success",
