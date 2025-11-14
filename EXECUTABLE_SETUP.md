@@ -1,28 +1,28 @@
-# Speed Test Tool - Konfiguracja Plików Wykonywalnych
+# Speed Test Tool - Executable Setup Guide
 
-## 📋 Przegląd
+> **Polish version (complete)**: [pl/EXECUTABLE_SETUP.md](pl/EXECUTABLE_SETUP.md)
 
-Ten dokument opisuje jak skonfigurować Speed Test Tool aby działał jako aplikacja uruchomialna bez bezpośredniego wywoływania Python.
+This document describes how to configure Speed Test Tool as a runnable application without directly calling Python.
 
-## 🚀 Instalacja Automatyczna (Zalecane)
+## 🚀 Automatic Installation (Recommended)
 
-### Dla wszystkich użytkowników (wymaga sudo):
+### For all users (requires sudo):
 ```bash
 sudo python3 install.py
 ```
 
-### Dla bieżącego użytkownika:
+### For current user only:
 ```bash
 python3 install.py --user
 ```
 
-### Za pomocą Makefile:
+### Using Makefile:
 ```bash
 make install          # System-wide
 make install-user     # User-only
 ```
 
-## 📁 Struktura Po Instalacji
+## 📁 Post-Installation Structure
 
 ```
 /usr/local/bin/              # System-wide installation
@@ -38,353 +38,358 @@ make install-user     # User-only
 └── ...
 ```
 
-## 🎯 Utworzone Pliki Wykonywalne
+## 🎯 Created Executables
 
-### 1. `speedtest-cli` - Interface CLI
+### 1. `speedtest-cli` - CLI Interface
 ```bash
-# Podstawowe użycie
+# Basic usage
 speedtest-cli
 
-# Tworzenie konfiguracji
+# Create configuration
 speedtest-cli --create-config
 
-# Pomoc
+# JSON output
+speedtest-cli --json
+
+# Help
 speedtest-cli --help
 ```
 
-**Funkcjonalność:**
-- Test prędkości download/upload/ping
-- System retry przy błędach sieci
-- Walidacja i ostrzeżenia o wynikach
-- Wsparcie konfiguracji JSON
+**Functionality:**
+- Download/upload/ping speed test
+- Automatic retry on network errors
+- Result validation and warnings
+- JSON configuration support
+- Database storage
 
-### 2. `speedtest-gui` - Interface Graficzny
+### 2. `speedtest-gui` - Graphical Interface
 ```bash
-# Uruchomienie GUI
+# Launch GUI
 speedtest-gui
 
-# Material Design interface z:
+# Material Design interface with:
 # - Real-time progress
-# - Możliwość anulowania
-# - Graficzne wyniki
-# - Animacje i feedback
+# - Cancellation support
+# - Graphical results
+# - Animations and feedback
 ```
 
-**Funkcjonalność:**
+**Functionality:**
 - Modern Material Design
-- Progress tracking w czasie rzeczywistym
-- Możliwość anulowania testów
-- Wizualne wyświetlanie wyników
+- Real-time progress tracking
+- Test cancellation capability
+- Visual result display
 
-### 3. `speedtest-gui-fallback` - Alternatywny GUI
+### 3. `speedtest-gui-fallback` - Alternative GUI
 ```bash
-# Jeśli główny GUI nie działa
+# If main GUI doesn't work
 speedtest-gui-fallback
 
-# Prostszy interface jako fallback
+# Simpler interface as fallback
 ```
 
-### 4. `speedtest-scheduler` - Automatyzacja
+### 4. `speedtest-scheduler` - Automation
 ```bash
-# Test jednorazowy z zapisem do bazy
+# One-time test with database save
 speedtest-scheduler --immediate
 
-# Automatyczne testy co 30 minut
+# Automatic tests every 30 minutes
 speedtest-scheduler --interval 30
 
-# Wyświetlenie statystyk
+# Display statistics
 speedtest-scheduler --stats --days 7
 
-# Uruchomienie w tle
+# Run in background
 nohup speedtest-scheduler --interval 60 > speedtest.log 2>&1 &
 ```
 
-**Funkcjonalność:**
-- Automatyczne testy w tle
-- Zapis do bazy SQLite
-- Statystyki historyczne
-- Export danych
+**Functionality:**
+- Automated background testing
+- SQLite database storage
+- Historical statistics
+- Data export
 
-### 5. `speedtest-storage` - Zarządzanie Danymi
+### 5. `speedtest-storage` - Data Management
 ```bash
-# Statystyki z ostatnich 30 dni
+# Statistics from last 30 days
 speedtest-storage stats --days 30
 
-# Export do CSV
-speedtest-storage export csv wyniki.csv
+# Export to CSV
+speedtest-storage export csv results.csv
 
-# Export do JSON
-speedtest-storage export json dane.json --days 7
+# Export to JSON
+speedtest-storage export json data.json --days 7
 
-# Informacje o bazie
+# Database information
 speedtest-storage info
 
-# Czyszczenie starych danych
+# Clean old data
 speedtest-storage cleanup --keep-days 365
 ```
 
-## ⚙️ Konfiguracja PATH
+## ⚙️ PATH Configuration
 
-### Automatyczna (podczas instalacji):
-Installer automatycznie sprawdza czy skrypty są w PATH i wyświetla instrukcje jeśli potrzeba.
+### Automatic (during installation):
+The installer automatically checks if scripts are in PATH and displays instructions if needed.
 
-### Ręczna konfiguracja:
+### Manual configuration:
 ```bash
-# Dla instalacji użytkownika - dodaj do ~/.bashrc
+# For user installation - add to ~/.bashrc
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 
-# Sprawdzenie czy działa
+# Verify it works
 which speedtest-cli
 ```
 
 ## 🖥️ Desktop Integration (Linux)
 
 ### .desktop File
-Installer automatycznie tworzy:
+Installer automatically creates:
 ```
 ~/.local/share/applications/speedtest.desktop
 ```
 
-**Funkcjonalność:**
-- Ikona w menu aplikacji
-- Uruchomienie przez kliknięcie
-- Kategorie: Network, Utility
+**Functionality:**
+- Icon in applications menu
+- Launch by clicking
+- Categories: Network, Utility
 
-### Menu Applications
-Po instalacji aplikacja pojawi się w:
+### Applications Menu
+After installation, the application appears in:
 - Menu → Network → Speed Test Tool
-- lub Applications → Internet → Speed Test Tool
+- or Applications → Internet → Speed Test Tool
 
-## 🔧 Systemd Service (Opcjonalne)
+## 🔧 Systemd Service (Optional)
 
-### Instalacja usługi:
+### Service installation:
 ```bash
 sudo make service-install
 sudo systemctl enable speedtest.service
 sudo systemctl start speedtest.service
 ```
 
-### Zarządzanie:
+### Management:
 ```bash
-make service-status    # Status usługi
-make service-start     # Uruchomienie
-make service-stop      # Zatrzymanie
-journalctl -u speedtest.service  # Logi
+make service-status    # Service status
+make service-start     # Start
+make service-stop      # Stop
+journalctl -u speedtest.service  # Logs
 ```
 
-## 🎛️ Konfiguracja
+## 🎛️ Configuration
 
-### Tworzenie konfiguracji:
+### Create configuration:
 ```bash
 speedtest-cli --create-config
 ```
 
-### Lokalizacja plików:
+### File locations:
 ```
 Speed_test/
-├── speedtest_config.json     # Konfiguracja użytkownika
-├── speedtest_history.db      # Baza danych wyników
-└── speedtest_env/            # Środowisko wirtualne
+├── speedtest_config.json     # User configuration
+├── speedtest_history.db      # Results database
+└── speedtest_env/            # Virtual environment
 ```
 
-### Przykład konfiguracji:
+### Example configuration:
 ```json
 {
   "bits_to_mbps": 1000000,
   "speedtest_timeout": 60,
   "max_retries": 3,
-  "show_detailed_progress": true
+  "show_detailed_progress": true,
+  "save_results_to_database": true
 }
 ```
 
-## 🧪 Testowanie Instalacji
+## 🧪 Installation Testing
 
-### Szybki test:
+### Quick test:
 ```bash
 make test
-# lub
+# or
 python3 test_installation.py --quick
 ```
 
-### Pełny test:
+### Full test:
 ```bash
 make test-full
-# lub
+# or
 python3 test_installation.py
 ```
 
-### Test bez sieci:
+### Offline test:
 ```bash
 make test-offline
-# lub
+# or
 python3 test_installation.py --no-network
 ```
 
-### Test komend:
+### Command testing:
 ```bash
-# Test każdej komendy
+# Test each command
 speedtest-cli --create-config
 speedtest-storage info
 speedtest-scheduler --immediate
-speedtest-gui  # Test GUI (wyświetli okno)
+speedtest-gui  # Test GUI (opens window)
 ```
 
-## 🔍 Rozwiązywanie Problemów
+## 🔍 Troubleshooting
 
-### Skrypty nie są znalezione:
+### Scripts not found:
 ```bash
-# Sprawdź PATH
+# Check PATH
 echo $PATH
 
-# Sprawdź instalację
+# Check installation
 ls -la ~/.local/bin/speedtest-*
-# lub
+# or
 ls -la /usr/local/bin/speedtest-*
 
-# Reinstalacja
+# Reinstall
 python3 install.py --user
 ```
 
-### Błędy uprawnień:
+### Permission errors:
 ```bash
-# Naprawa uprawnień
+# Fix permissions
 chmod +x ~/.local/bin/speedtest-*
 
-# lub system-wide
+# or system-wide
 sudo chmod +x /usr/local/bin/speedtest-*
 ```
 
-### GUI nie uruchamia się:
+### GUI won't start:
 ```bash
-# Sprawdź zależności
+# Check dependencies
 python3 -c "from kivymd.app import MDApp; print('GUI OK')"
 
-# Ustaw backend
+# Set backend
 export KIVY_GL_BACKEND=gl
 
-# Użyj fallback
+# Use fallback
 speedtest-gui-fallback
 ```
 
-### Błędy środowiska wirtualnego:
+### Virtual environment errors:
 ```bash
-# Sprawdź czy istnieje
+# Check if exists
 ls -la speedtest_env/
 
-# Reinstalacja
+# Reinstall
 make setup
 python3 install.py
 ```
 
-## 📊 Informacje Systemowe
+## 📊 System Information
 
-### Status instalacji:
+### Installation status:
 ```bash
 make info
 ```
 
-### Lokalizacje plików:
+### File locations:
 ```bash
-# Skrypty wykonywalne
+# Executable scripts
 which speedtest-cli
 which speedtest-gui
 which speedtest-scheduler
 
-# Pliki aplikacji
+# Application files
 ls -la Speed_test/
 
 # Desktop entry
 ls -la ~/.local/share/applications/speedtest.desktop
 ```
 
-## 🗑️ Deinstalacja
+## 🗑️ Uninstallation
 
-### Podstawowa deinstalacja:
+### Basic uninstall:
 ```bash
 python3 uninstall.py
 ```
 
-### Pełna deinstalacja (z danymi):
+### Full uninstall (with data):
 ```bash
 python3 uninstall.py --remove-all
 ```
 
-### Ręczna deinstalacja:
+### Manual uninstall:
 ```bash
-# Usuń skrypty
+# Remove scripts
 rm ~/.local/bin/speedtest-*
-# lub
+# or
 sudo rm /usr/local/bin/speedtest-*
 
-# Usuń desktop entry
+# Remove desktop entry
 rm ~/.local/share/applications/speedtest.desktop
 
-# Usuń katalog aplikacji
+# Remove application directory
 rm -rf Speed_test/
 ```
 
-## 💡 Wskazówki Użytkowania
+## 💡 Usage Tips
 
-### Aliasy (opcjonalne):
+### Aliases (optional):
 ```bash
-# Dodaj do ~/.bashrc dla wygody
+# Add to ~/.bashrc for convenience
 alias st="speedtest-cli"
 alias stgui="speedtest-gui"
 alias stats="speedtest-storage stats"
 ```
 
-### Crontab (alternatywa dla systemd):
+### Crontab (alternative to systemd):
 ```bash
-# Edytuj crontab
+# Edit crontab
 crontab -e
 
-# Dodaj linię dla testów co godzinę
+# Add line for hourly tests
 0 * * * * /home/user/.local/bin/speedtest-scheduler --immediate
 ```
 
 ### Monitoring:
 ```bash
-# Logi z automatycznych testów
+# Logs from automated tests
 tail -f speedtest.log
 
-# Ostatnie wyniki
+# Recent results
 speedtest-storage stats --days 1
 
-# Export do monitoringu
+# Export for monitoring
 speedtest-storage export json /monitoring/speedtest-$(date +%Y%m).json --days 30
 ```
 
-## 📈 Przykłady Użycia
+## 📈 Usage Examples
 
-### 1. Jednorazowy test:
+### 1. One-time test:
 ```bash
 speedtest-cli
 ```
 
-### 2. Monitoring ciągły:
+### 2. Continuous monitoring:
 ```bash
-# Uruchomienie w tle
+# Run in background
 nohup speedtest-scheduler --interval 60 > speedtest.log 2>&1 &
 
-# Sprawdzanie wyników
+# Check results
 speedtest-storage stats --days 7
 ```
 
-### 3. Analiza wydajności:
+### 3. Performance analysis:
 ```bash
-# Export do analizy
+# Export for analysis
 speedtest-storage export csv "network-performance-$(date +%Y%m).csv" --days 30
 
-# Import do spreadsheet lub narzędzi analitycznych
+# Import to spreadsheet or analytical tools
 ```
 
-### 4. GUI dla prezentacji:
+### 4. GUI for presentation:
 ```bash
-# Uruchomienie GUI dla demonstracji
+# Launch GUI for demonstration
 speedtest-gui
 
-# Real-time monitoring z wizualnym feedbackiem
+# Real-time monitoring with visual feedback
 ```
 
-**✅ Po zakończeniu instalacji aplikacja jest gotowa do użycia jako standardowa aplikacja systemowa bez konieczności znajomości Python!**
+**✅ After installation, the application is ready to use as a standard system application without needing Python knowledge!**
