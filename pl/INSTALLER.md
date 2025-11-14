@@ -1,25 +1,23 @@
-# Speed Test Tool - Installation and Configuration Guide
+# Instalacja i Konfiguracja Speed Test Tool
 
-> **Polish version**: [pl/INSTALLER.md](pl/INSTALLER.md)
+## Instrukcja Instalacji Kompletnej Aplikacji
 
-## Complete Application Installation Instructions
-
-### 1. System Preparation
+### 1. Przygotowanie Systemu
 
 #### Ubuntu/Debian:
 ```bash
-# System update
+# Aktualizacja systemu
 sudo apt update && sudo apt upgrade -y
 
-# Install Python 3.8+ and tools
+# Instalacja Python 3.8+ i narzędzi
 sudo apt install -y python3 python3-pip python3-venv git
 
-# Install system dependencies for GUI (Kivy)
+# Instalacja zależności systemowych dla GUI (Kivy)
 sudo apt install -y python3-dev build-essential libssl-dev libffi-dev \
     libgstreamer-1.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
     libgl1-mesa-dev libglu1-mesa-dev freeglut3-dev libjpeg-dev libpng-dev
 
-# For older systems, may also need:
+# Dla starszych systemów może być potrzebne:
 sudo apt install -y libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev
 ```
 
@@ -35,33 +33,33 @@ sudo dnf update -y
 sudo dnf groupinstall -y "Development Tools"
 sudo dnf install -y python3 python3-pip python3-devel git
 
-# GUI dependencies
+# Zależności GUI
 sudo yum install -y mesa-libGL-devel mesa-libGLU-devel freeglut-devel \
     libjpeg-turbo-devel libpng-devel SDL2-devel
 ```
 
-### 2. Application Download and Installation
+### 2. Pobieranie i Instalacja Aplikacji
 
 ```bash
-# Clone repository
-git clone https://github.com/your-username/Speed_test.git
+# Klonowanie repozytorium
+git clone https://github.com/twój-użytkownik/Speed_test.git
 cd Speed_test
 
-# Create virtual environment
+# Tworzenie środowiska wirtualnego
 python3 -m venv speedtest_env
 
-# Activate environment
+# Aktywacja środowiska
 source speedtest_env/bin/activate  # Linux/macOS
-# or on Windows: speedtest_env\Scripts\activate
+# lub na Windows: speedtest_env\Scripts\activate
 
-# Install dependencies
+# Instalacja zależności
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 3. Creating Executable Scripts
+### 3. Tworzenie Plików Uruchamialnych
 
-#### A. Launch Scripts (created automatically by installer)
+#### A. Skrypty uruchamialne (utworzone automatycznie przez installer)
 
 **speedtest-cli** - CLI Interface:
 ```bash
@@ -87,81 +85,78 @@ source speedtest_env/bin/activate
 python3 scheduled_testing.py "$@"
 ```
 
-### 4. System Installation (Optional)
+### 4. Instalacja Systemowa (opcjonalna)
 
 ```bash
-# Run automatic installer
+# Uruchomienie automatycznego instalatora
 chmod +x install.py
 sudo python3 install.py
 
-# Or manually:
+# Lub ręcznie:
 sudo cp speedtest-* /usr/local/bin/
 sudo chmod +x /usr/local/bin/speedtest-*
 
-# Create symbolic links
+# Tworzenie linków symbolicznych
 sudo ln -sf /usr/local/bin/speedtest-cli /usr/bin/speedtest-cli
 sudo ln -sf /usr/local/bin/speedtest-gui /usr/bin/speedtest-gui
 sudo ln -sf /usr/local/bin/speedtest-scheduler /usr/bin/speedtest-scheduler
 ```
 
-### 5. Configuration
+### 5. Konfiguracja
 
 ```bash
-# Create sample configuration
+# Utworzenie przykładowej konfiguracji
 speedtest-cli --create-config
 
-# Edit configuration
+# Edycja konfiguracji
 nano speedtest_config.json
 
-# Test configuration
+# Testowanie konfiguracji
 speedtest-cli
 ```
 
-### 6. Usage
+### 6. Użytkowanie
 
-#### CLI (Command Line):
+#### CLI (Linia Komend):
 ```bash
-# Basic speed test
+# Podstawowy test prędkości
 speedtest-cli
 
-# Create configuration
+# Utworzenie konfiguracji
 speedtest-cli --create-config
 
-# JSON output
-speedtest-cli --json
-
-# Test with automatic database save
+# Test z automatycznym zapisem do bazy
 speedtest-scheduler --immediate
 ```
 
-#### GUI (Graphical Interface):
+#### GUI (Interfejs Graficzny):
 ```bash
-# Launch graphical interface
+# Uruchomienie interfejsu graficznego
 speedtest-gui
 
-# Application will open in a Material Design window
+# Aplikacja uruchomi się w oknie z Material Design
 ```
 
-#### Scheduler (Automated Testing):
+#### Scheduler (Automatyczne testy):
 ```bash
-# One-time test with save
+# Test jednorazowy z zapisem
 speedtest-scheduler --immediate
 
-# Automatic tests every 30 minutes
+# Automatyczne testy co 30 minut
 speedtest-scheduler --interval 30
 
-# Display statistics from last 7 days
+# Wyświetlenie statystyk z ostatnich 7 dni
 speedtest-scheduler --stats --days 7
 
-# Run in background as daemon
+# Uruchomienie w tle jako daemon
 nohup speedtest-scheduler --interval 60 > speedtest.log 2>&1 &
 ```
 
-### 7. System Integration
+### 7. Integracja z Systemem
 
 #### Systemd Service (Linux):
 ```bash
-# Create service file
+# Utworzenie pliku usługi
 sudo tee /etc/systemd/system/speedtest.service << EOF
 [Unit]
 Description=Speed Test Scheduler
@@ -180,18 +175,18 @@ RestartSec=30
 WantedBy=multi-user.target
 EOF
 
-# Enable and start service
+# Włączenie i uruchomienie usługi
 sudo systemctl daemon-reload
 sudo systemctl enable speedtest.service
 sudo systemctl start speedtest.service
 
-# Check status
+# Sprawdzenie statusu
 sudo systemctl status speedtest.service
 ```
 
 #### Desktop Entry (GUI Application):
 ```bash
-# Create .desktop file
+# Utworzenie .desktop file
 tee ~/.local/share/applications/speedtest.desktop << EOF
 [Desktop Entry]
 Name=Speed Test Tool
@@ -203,117 +198,100 @@ Type=Application
 Categories=Network;Utility;
 EOF
 
-# Update application cache
+# Aktualizacja cache aplikacji
 update-desktop-database ~/.local/share/applications/
 ```
 
-### 8. KDE Plasma Widget Installation
+### 8. Rozwiązywanie Problemów
 
+#### Problemy z GUI (Python 3.13+):
 ```bash
-# Install widget using Makefile
-make install-plasmoid
-
-# Or manually
-cd plasma-widget
-./install_plasmoid.sh
-
-# Restart Plasma Shell
-kquitapp6 plasmashell && kstart6 plasmashell
-# or for Plasma 5:
-kquitapp5 plasmashell && kstart5 plasmashell
-```
-
-### 9. Troubleshooting
-
-#### GUI Issues (Python 3.13+):
-```bash
-# Automatic patch is applied during installation
-# If GUI doesn't work, apply patch manually:
+# Automatyczny patch jest stosowany podczas instalacji
+# Jeśli GUI nie działa, zastosuj patch ręcznie:
 source speedtest_env/bin/activate
 python3 fix_speedtest_py313.py
 
-# Check Kivy installation
+# Sprawdzenie instalacji Kivy
 python3 -c "import kivy; print(kivy.__version__)"
 python3 -c "from kivymd.app import MDApp; print('GUI OK')"
 
-# OpenGL issues
+# Problemy z OpenGL
 export KIVY_GL_BACKEND=gl
-export LIBGL_ALWAYS_INDIRECT=1  # For X11 forwarding
+export LIBGL_ALWAYS_INDIRECT=1  # Dla X11 forwarding
 
-# Alternative GUI
-speedtest-gui-fallback  # If main GUI doesn't work
+# Alternatywne GUI
+speedtest-gui-fallback  # Jeśli główne GUI nie działa
 ```
 
-#### Network Issues:
+#### Problemy z siecią:
 ```bash
-# Test connectivity
+# Test łączności
 ping -c 4 8.8.8.8
 
 # Test speedtest-cli
 pip install speedtest-cli
 speedtest-cli --simple
 
-# Debug with verbose
+# Debugowanie z verbose
 speedtest-cli --create-config
-# Edit speedtest_config.json: "show_detailed_progress": true
+# Edytuj speedtest_config.json: "show_detailed_progress": true
 ```
 
-#### Permission Issues:
+#### Problemy z uprawnieniami:
 ```bash
-# Check permissions
+# Sprawdzenie uprawnień
 ls -la speedtest-*
 chmod +x speedtest-*
 
-# Fix virtualenv permissions
+# Naprawa uprawnień virtualenv
 chown -R $USER:$USER speedtest_env/
 ```
 
-### 10. Updates
+### 9. Aktualizacje
 
 ```bash
-# Update code
+# Aktualizacja kodu
 git pull origin main
 
-# Update dependencies
+# Aktualizacja zależności
 source speedtest_env/bin/activate
 pip install --upgrade -r requirements.txt
 
-# Reinstall scripts
+# Ponowna instalacja skryptów
 sudo python3 install.py
 ```
 
-### 11. Uninstallation
+### 10. Deinstalacja
 
 ```bash
-# Remove system files
+# Usunięcie plików systemowych
 sudo rm -f /usr/local/bin/speedtest-*
 sudo rm -f /usr/bin/speedtest-*
 
-# Remove systemd service
+# Usunięcie usługi systemd
 sudo systemctl stop speedtest.service
 sudo systemctl disable speedtest.service
 sudo rm -f /etc/systemd/system/speedtest.service
 sudo systemctl daemon-reload
 
-# Remove .desktop file
+# Usunięcie .desktop file
 rm -f ~/.local/share/applications/speedtest.desktop
 
-# Remove application folder
+# Usunięcie folderu aplikacji
 cd ..
 rm -rf Speed_test
 ```
 
-## Support
+## Wsparcie
 
-- **Issues**: Create an issue on GitHub repository
-- **Documentation**: Check README.md and AGENTS.md
-- **Configuration**: Examples in speedtest_config.json.example
+- **Problemy**: Utwórz issue w repozytorium GitHub
+- **Dokumentacja**: Sprawdź README.md i AGENTS.md
+- **Konfiguracja**: Przykłady w speedtest_config.json.example
 
-## System Requirements
+## Wymagania Systemowe
 
-- **Python**: 3.8 or newer (minimum 3.6 for CLI only)
-- **RAM**: Minimum 512 MB (recommended 1 GB)
-- **Disk**: 100 MB free space
-- **Network**: Internet connection for testing
-- **GUI**: X11/Wayland for graphical interface
-- **KDE Plasma**: 5.x or 6.x for widget
+- **Python**: 3.6 lub nowszy (zalecane 3.8+)
+- **RAM**: Minimum 512 MB (zalecane 1 GB)
+- **Dysk**: 100 MB wolnego miejsca
+- **Sieć**: Połączenie internetowe do testowania
+- **GUI**: X11/Wayland dla interfejsu graficznego

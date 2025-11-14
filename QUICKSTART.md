@@ -1,325 +1,358 @@
-# Speed Test Tool - Szybki Start
+# Speed Test Tool - Quick Start Guide
 
-## 🚀 Instalacja w 3 krokach
+> **Polish version**: [pl/QUICKSTART.md](pl/QUICKSTART.md)
 
-### 1. Pobierz i przygotuj
+## 🚀 Installation in 3 Steps
+
+### 1. Download and Prepare
 ```bash
-# Klonuj repozytorium
-git clone https://github.com/twój-użytkownik/Speed_test.git
+# Clone the repository
+git clone https://github.com/your-username/Speed_test.git
 cd Speed_test
 
-# Daj uprawnienia wykonania
+# Grant execution permissions
 chmod +x install.py sp.py speedtest_gui.py
 ```
 
-### 2. Zainstaluj automatycznie
+### 2. Install Automatically
 ```bash
-# Dla wszystkich użytkowników (wymaga sudo)
+# For all users (requires sudo)
 sudo python3 install.py
 
-# LUB dla obecnego użytkownika tylko
+# OR for current user only
 python3 install.py --user
 ```
 
-### 3. Uruchom aplikację
+### 3. Run the Application
 ```bash
-# CLI - Test prędkości w terminalu
+# CLI - Terminal speed test
 speedtest-cli
 
-# GUI - Interfejs graficzny
+# GUI - Graphical interface
 speedtest-gui
 
-# Scheduler - Automatyczne testy
+# Scheduler - Automated tests
 speedtest-scheduler --immediate
 ```
 
 ---
 
-## 📋 Alternatywne metody uruchamiania
+## 📋 Alternative Launch Methods
 
-### A. Bez instalacji (tryb deweloperski)
+### A. Without Installation (Development Mode)
 ```bash
-# Przygotowanie środowiska
+# Environment setup
 make setup
 
-# Uruchamianie bezpośrednie
+# Direct execution
 make run-cli          # CLI
-make run-gui          # GUI  
+make run-gui          # GUI
 make run-scheduler    # Scheduler
 ```
 
-### B. Za pomocą Makefile
+### B. Using Makefile
 ```bash
-# Pełna instalacja
+# Full installation
 make install
 
-# Tylko środowisko deweloperskie  
+# Development environment only
 make dev-setup
 
-# Test funkcjonalności
+# Functionality tests
 make test
 ```
 
-### C. Ręcznie (bez automatyzacji)
+### C. Manually (Without Automation)
 ```bash
-# Tworzenie środowiska wirtualnego
+# Create virtual environment
 python3 -m venv speedtest_env
 source speedtest_env/bin/activate
 
-# Instalacja zależności
+# Install dependencies
 pip install -r requirements.txt
 
-# Uruchamianie
+# Run
 python3 sp.py              # CLI
 python3 speedtest_gui.py   # GUI
 ```
 
 ---
 
-## ⚙️ Konfiguracja
+## ⚙️ Configuration
 
-### Tworzenie konfiguracji
+### Creating Configuration
 ```bash
-# Utworzenie przykładowej konfiguracji
+# Create sample configuration
 speedtest-cli --create-config
 
-# Edycja konfiguracji
+# Edit configuration
 nano speedtest_config.json
 ```
 
-### Przykład konfiguracji
+### Example Configuration
 ```json
 {
   "bits_to_mbps": 1000000,
   "speedtest_timeout": 60,
   "max_retries": 3,
-  "show_detailed_progress": true
+  "show_detailed_progress": true,
+  "save_results_to_database": true
 }
 ```
 
 ---
 
-## 🖥️ Interfejsy użytkownika
+## 🖥️ User Interfaces
 
-### 1. CLI (Linia komend)
+### 1. CLI (Command Line)
 ```bash
-speedtest-cli                    # Podstawowy test
-speedtest-cli --create-config    # Utworzenie konfiguracji
+speedtest-cli                    # Basic test
+speedtest-cli --create-config    # Create configuration
+speedtest-cli --json             # JSON output
 ```
 
-**Funkcje:**
-- ✅ Test download/upload/ping
-- ✅ Automatyczny retry przy błędach
-- ✅ Walidacja wyników
-- ✅ Kolorowy output
+**Features:**
+- ✅ Download/upload/ping test
+- ✅ Automatic retry on errors
+- ✅ Result validation
+- ✅ Colored output
+- ✅ Database storage
 
-### 2. GUI (Interfejs graficzny)
+### 2. GUI (Graphical Interface)
 ```bash
 speedtest-gui                    # Material Design GUI
-speedtest-gui-fallback          # Alternatywny GUI
+speedtest-gui-fallback          # Alternative GUI
 ```
 
-**Funkcje:**
+**Features:**
 - ✅ Material Design
 - ✅ Real-time progress
-- ✅ Anulowanie testów
-- ✅ Graficzne wyniki
+- ✅ Test cancellation
+- ✅ Graphical results
+- ✅ History display
 
-### 3. Scheduler (Automatyzacja)
+### 3. Scheduler (Automation)
 ```bash
-speedtest-scheduler --immediate              # Jednorazowy test
-speedtest-scheduler --interval 30           # Co 30 minut  
-speedtest-scheduler --stats --days 7        # Statystyki
+speedtest-scheduler --immediate              # One-time test
+speedtest-scheduler --interval 30           # Every 30 minutes
+speedtest-scheduler --stats --days 7        # Statistics
 ```
 
-**Funkcje:**
-- ✅ Automatyczne testy
-- ✅ Zapis do bazy danych
-- ✅ Statystyki historyczne
-- ✅ Export danych
+**Features:**
+- ✅ Automated tests
+- ✅ Database storage
+- ✅ Historical statistics
+- ✅ Data export
 
 ---
 
-## 📊 Zarządzanie danymi
+## 🖥️ KDE Plasma Widget
 
-### Wyświetlanie statystyk
+### Widget Installation
 ```bash
-speedtest-storage stats --days 30           # Ostatnie 30 dni
-speedtest-storage info                      # Info o bazie
+# Install widget
+make install-plasmoid
+
+# Or manually
+cd plasma-widget
+./install_plasmoid.sh
 ```
 
-### Export danych
+### Using the Widget
+- Right-click on desktop → Add Widgets → Search "Speed Test"
+- Widget displays latest results from database
+- Auto-refreshes every 30 seconds
+- Can be added to panel or desktop
+
+---
+
+## 📊 Data Management
+
+### Displaying Statistics
 ```bash
-speedtest-storage export csv wyniki.csv     # Export do CSV
-speedtest-storage export json dane.json    # Export do JSON
+speedtest-storage stats --days 30           # Last 30 days
+speedtest-storage info                      # Database info
 ```
 
-### Czyszczenie starych danych
+### Data Export
 ```bash
-speedtest-storage cleanup --keep-days 365   # Usuń starsze niż rok
+speedtest-storage export csv results.csv     # Export to CSV
+speedtest-storage export json data.json    # Export to JSON
+```
+
+### Cleaning Old Data
+```bash
+speedtest-storage cleanup --keep-days 365   # Delete older than 1 year
 ```
 
 ---
 
-## 🔧 Rozwiązywanie problemów
+## 🔧 Troubleshooting
 
-### GUI nie uruchamia się (Python 3.13+)
+### GUI Won't Start (Python 3.13+)
 ```bash
-# Automatyczny patch jest stosowany podczas instalacji
-# Jeśli GUI nie działa, zastosuj patch ręcznie:
+# Automatic patch is applied during installation
+# If GUI doesn't work, apply patch manually:
 source speedtest_env/bin/activate
 python3 fix_speedtest_py313.py
 
-# Sprawdź zależności GUI
+# Check GUI dependencies
 python3 -c "from kivymd.app import MDApp; print('GUI OK')"
 
-# Ustaw backend OpenGL
+# Set OpenGL backend
 export KIVY_GL_BACKEND=gl
 
-# Użyj alternatywnego GUI
+# Use alternative GUI
 speedtest-gui-fallback
 ```
 
-### Problemy z siecią
+### Network Issues
 ```bash
-# Test podstawowej łączności
+# Test basic connectivity
 ping -c 4 8.8.8.8
 
 # Debug speedtest-cli
 speedtest-cli --simple
 ```
 
-### Brak uprawnień
+### Permission Issues
 ```bash
-# Naprawa uprawnień
+# Fix permissions
 chmod +x speedtest-*
 
-# Instalacja użytkownika  
+# User installation
 python3 install.py --user
 ```
 
 ---
 
-## 🎯 Typowe przypadki użycia
+## 🎯 Common Use Cases
 
-### Jednorazowy test
+### One-Time Test
 ```bash
 speedtest-cli
 ```
 
-### Monitoring w tle
+### Background Monitoring
 ```bash
-# Uruchomienie w tle
+# Run in background
 nohup speedtest-scheduler --interval 60 > speedtest.log 2>&1 &
 
-# Sprawdzenie statusu
+# Check status
 tail -f speedtest.log
 ```
 
-### Analiza wydajności
+### Performance Analysis
 ```bash
-# Statystyki tygodniowe
+# Weekly statistics
 speedtest-scheduler --stats --days 7
 
-# Export dla dalszej analizy
-speedtest-storage export csv "analiza-$(date +%Y%m).csv" --days 30
+# Export for further analysis
+speedtest-storage export csv "analysis-$(date +%Y%m).csv" --days 30
 ```
 
-### Testowanie po zmianach w sieci
+### Testing After Network Changes
 ```bash
-# Test przed zmianą
-speedtest-cli > przed.txt
+# Test before change
+speedtest-cli > before.txt
 
-# Test po zmianie
-speedtest-cli > po.txt
+# Test after change
+speedtest-cli > after.txt
 
-# Porównanie wyników
-diff przed.txt po.txt
+# Compare results
+diff before.txt after.txt
 ```
 
 ---
 
-## 📁 Struktura plików
+## 📁 File Structure
 
 ```
 Speed_test/
 ├── speedtest-cli*           # CLI executable
-├── speedtest-gui*           # GUI executable  
+├── speedtest-gui*           # GUI executable
 ├── speedtest-scheduler*     # Scheduler executable
-├── speedtest_config.json    # Konfiguracja użytkownika
-├── speedtest_history.db     # Baza danych wyników
+├── speedtest-storage*       # Storage management
+├── speedtest_config.json    # User configuration
+├── speedtest_history.db     # Results database
+├── plasma-widget/           # KDE Plasma widget
 ├── install.py*              # Installer
 ├── uninstall.py*            # Uninstaller
-└── Makefile                 # Automatyzacja
+└── Makefile                 # Build automation
 ```
 
 ---
 
-## 🔄 Aktualizacje
+## 🔄 Updates
 
-### Aktualizacja kodu
+### Code Updates
 ```bash
 git pull origin main
-make update                  # Aktualizacja zależności
-sudo python3 install.py     # Reinstalacja skryptów
+make update                  # Update dependencies
+sudo python3 install.py     # Reinstall scripts
 ```
 
-### Backup danych
+### Data Backup
 ```bash
-make backup                  # Backup konfiguracji i danych
-make restore                 # Przywracanie z backup
+make backup                  # Backup config and data
+make restore                 # Restore from backup
 ```
 
 ---
 
-## 🗑️ Odinstalowanie
+## 🗑️ Uninstallation
 
-### Częściowe (zachowaj dane)
+### Partial (Keep Data)
 ```bash
 python3 uninstall.py
 ```
 
-### Kompletne (usuń wszystko)
+### Complete (Remove Everything)
 ```bash
 python3 uninstall.py --remove-all
 ```
 
-### Ręczne usunięcie
+### Manual Removal
 ```bash
-# Usuń pliki wykonywalne
+# Remove executables
 sudo rm /usr/local/bin/speedtest-*
+# Or for user installation:
+rm ~/.local/bin/speedtest-*
 
-# Usuń katalog aplikacji
+# Remove application directory
 rm -rf Speed_test/
 ```
 
 ---
 
-## 📞 Wsparcie
+## 📞 Support
 
-- **Błędy**: Utwórz issue na GitHub
-- **Dokumentacja**: README.md, AGENTS.md, INSTALLER.md
-- **Konfiguracja**: speedtest_config.json.example
+- **Bugs**: Create an issue on GitHub
+- **Documentation**: README.md, AGENTS.md, INSTALLER.md
+- **Configuration**: speedtest_config.json.example
 
 ---
 
-## ⚡ Skróty poleceń
+## ⚡ Command Reference
 
-| Komenda | Opis |
-|---------|------|
-| `speedtest-cli` | Test CLI |
-| `speedtest-gui` | Interface graficzny |
-| `speedtest-scheduler --immediate` | Test jednorazowy |
-| `speedtest-scheduler --interval 30` | Co 30 min |
-| `speedtest-storage stats` | Statystyki |
-| `make install` | Instalacja |
-| `make test` | Test funkcjonalności |
-| `make clean` | Czyszczenie |
+| Command | Description |
+|---------|-------------|
+| `speedtest-cli` | CLI test |
+| `speedtest-cli --json` | JSON output |
+| `speedtest-gui` | Graphical interface |
+| `speedtest-scheduler --immediate` | One-time test |
+| `speedtest-scheduler --interval 30` | Every 30 min |
+| `speedtest-storage stats` | Statistics |
+| `speedtest-storage export csv` | CSV export |
+| `make install` | Installation |
+| `make install-plasmoid` | Install KDE widget |
+| `make test` | Functionality test |
+| `make clean` | Cleanup |
 
-**Start w 30 sekund:**
+**Get Started in 30 Seconds:**
 ```bash
 git clone repo && cd Speed_test
-sudo python3 install.py
-speedtest-cli --create-config
-speedtest-gui
+make setup
+python3 sp.py --create-config
+python3 speedtest_gui.py
 ```
