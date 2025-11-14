@@ -104,13 +104,15 @@ class TestResultStorage:
         test_date = datetime.fromtimestamp(result.timestamp).isoformat()
         warnings_json = json.dumps(result.warnings) if result.warnings else None
         
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("""
+        conn = self._get_connection()
+        cursor = conn.execute(
+            """
                 INSERT INTO test_results 
                 (timestamp, download_mbps, upload_mbps, ping_ms, server_info, 
                  is_valid, warnings, test_date)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
+            """,
+            (
                 result.timestamp,
                 result.download_mbps,
                 result.upload_mbps,
@@ -118,9 +120,11 @@ class TestResultStorage:
                 result.server_info,
                 result.is_valid,
                 warnings_json,
-                test_date
-            ))
-            return cursor.lastrowid
+                test_date,
+            ),
+        )
+        conn.commit()
+        return cursor.lastrowid
     
     def get_recent_results(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get recent test results.
@@ -131,23 +135,25 @@ class TestResultStorage:
         Returns:
             List of result dictionaries
         """
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.execute("""
+        conn = self._get_connection()
+        cursor = conn.execute(
+            """
                 SELECT * FROM test_results 
                 WHERE is_valid = 1
                 ORDER BY timestamp DESC 
                 LIMIT ?
-            """, (limit,))
-            
-            results = []
-            for row in cursor:
-                result_dict = dict(row)
-                if result_dict['warnings']:
-                    result_dict['warnings'] = json.loads(result_dict['warnings'])
-                results.append(result_dict)
+            """,
+            (limit,),
+        )
 
-            return results
+        results = []
+        for row in cursor:
+            result_dict = dict(row)
+            if result_dict['warnings']:
+                result_dict['warnings'] = json.loads(result_dict['warnings'])
+            results.append(result_dict)
+
+        return results
 
     def get_all_results(self) -> List[Dict[str, Any]]:
         """Get all valid test results (use with caution on large databases).
@@ -155,22 +161,23 @@ class TestResultStorage:
         Returns:
             List of all result dictionaries
         """
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.execute("""
+        conn = self._get_connection()
+        cursor = conn.execute(
+            """
                 SELECT * FROM test_results
                 WHERE is_valid = 1
                 ORDER BY timestamp DESC
-            """)
+            """
+        )
 
-            results = []
-            for row in cursor:
-                result_dict = dict(row)
-                if result_dict['warnings']:
-                    result_dict['warnings'] = json.loads(result_dict['warnings'])
-                results.append(result_dict)
+        results = []
+        for row in cursor:
+            result_dict = dict(row)
+            if result_dict['warnings']:
+                result_dict['warnings'] = json.loads(result_dict['warnings'])
+            results.append(result_dict)
 
-            return results
+        return results
 
     def get_results_by_date_range(self, start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
         """Get results within date range.
@@ -185,22 +192,24 @@ class TestResultStorage:
         start_timestamp = start_date.timestamp()
         end_timestamp = end_date.timestamp()
         
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.execute("""
+        conn = self._get_connection()
+        cursor = conn.execute(
+            """
                 SELECT * FROM test_results 
                 WHERE timestamp BETWEEN ? AND ? AND is_valid = 1
                 ORDER BY timestamp DESC
-            """, (start_timestamp, end_timestamp))
-            
-            results = []
-            for row in cursor:
-                result_dict = dict(row)
-                if result_dict['warnings']:
-                    result_dict['warnings'] = json.loads(result_dict['warnings'])
-                results.append(result_dict)
-            
-            return results
+            """,
+            (start_timestamp, end_timestamp),
+        )
+        
+        results = []
+        for row in cursor:
+            result_dict = dict(row)
+            if result_dict['warnings']:
+                result_dict['warnings'] = json.loads(result_dict['warnings'])
+            results.append(result_dict)
+        
+        return results
     
     def get_statistics(self, days: int = 30) -> Dict[str, Any]:
         """Get statistics for recent results.
@@ -300,35 +309,40 @@ class TestResultStorage:
         Returns:
             List of result dictionaries
         """
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
+        conn = self._get_connection()
 
-            if days:
-                start_timestamp = (datetime.now() - timedelta(days=days)).timestamp()
-                cursor = conn.execute("""
+        if days:
+            start_timestamp = (datetime.now() - timedelta(days=days)).timestamp()
+            cursor = conn.execute(
+                """
                     SELECT * FROM test_results
                     WHERE is_valid = 1 AND timestamp >= ?
                     ORDER BY timestamp ASC
                     LIMIT ? OFFSET ?
-                """, (start_timestamp, limit, offset))
-            else:
-                cursor = conn.execute("""
+                """,
+                (start_timestamp, limit, offset),
+            )
+        else:
+            cursor = conn.execute(
+                """
                     SELECT * FROM test_results
                     WHERE is_valid = 1
                     ORDER BY timestamp ASC
                     LIMIT ? OFFSET ?
-                """, (limit, offset))
+                """,
+                (limit, offset),
+            )
 
-            results = []
-            for row in cursor:
-                result_dict = dict(row)
-                if result_dict['warnings']:
-                    result_dict['warnings'] = json.loads(result_dict['warnings'])
-                else:
-                    result_dict['warnings'] = []
-                results.append(result_dict)
+        results = []
+        for row in cursor:
+            result_dict = dict(row)
+            if result_dict['warnings']:
+                result_dict['warnings'] = json.loads(result_dict['warnings'])
+            else:
+                result_dict['warnings'] = []
+            results.append(result_dict)
 
-            return results
+        return results
     
     def export_to_json(self, output_file: str, days: Optional[int] = None, batch_size: int = 1000) -> int:
         """Export results to JSON file using batched queries for memory efficiency.
@@ -376,12 +390,16 @@ class TestResultStorage:
         cutoff_date = datetime.now() - timedelta(days=keep_days)
         cutoff_timestamp = cutoff_date.timestamp()
         
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("""
+        conn = self._get_connection()
+        cursor = conn.execute(
+            """
                 DELETE FROM test_results 
                 WHERE timestamp < ?
-            """, (cutoff_timestamp,))
-            return cursor.rowcount
+            """,
+            (cutoff_timestamp,),
+        )
+        conn.commit()
+        return cursor.rowcount
     
     def get_database_info(self) -> Dict[str, Any]:
         """Get database information.
@@ -389,31 +407,33 @@ class TestResultStorage:
         Returns:
             Database statistics
         """
-        with sqlite3.connect(self.db_path) as conn:
-            # Total records
-            total_count = conn.execute("SELECT COUNT(*) FROM test_results").fetchone()[0]
-            
-            # Valid records
-            valid_count = conn.execute("SELECT COUNT(*) FROM test_results WHERE is_valid = 1").fetchone()[0]
-            
-            # Date range
-            date_range = conn.execute("""
+        conn = self._get_connection()
+        # Total records
+        total_count = conn.execute("SELECT COUNT(*) FROM test_results").fetchone()[0]
+        
+        # Valid records
+        valid_count = conn.execute("SELECT COUNT(*) FROM test_results WHERE is_valid = 1").fetchone()[0]
+        
+        # Date range
+        date_range = conn.execute(
+            """
                 SELECT MIN(test_date), MAX(test_date) 
                 FROM test_results WHERE is_valid = 1
-            """).fetchone()
-            
-            # Database file size
-            db_size = self.db_path.stat().st_size if self.db_path.exists() else 0
-            
-            return {
-                'database_path': str(self.db_path),
-                'database_size_bytes': db_size,
-                'database_size_mb': round(db_size / (1024 * 1024), 2),
-                'total_records': total_count,
-                'valid_records': valid_count,
-                'first_test': date_range[0] if date_range[0] else None,
-                'last_test': date_range[1] if date_range[1] else None
-            }
+            """
+        ).fetchone()
+        
+        # Database file size
+        db_size = self.db_path.stat().st_size if self.db_path.exists() else 0
+        
+        return {
+            'database_path': str(self.db_path),
+            'database_size_bytes': db_size,
+            'database_size_mb': round(db_size / (1024 * 1024), 2),
+            'total_records': total_count,
+            'valid_records': valid_count,
+            'first_test': date_range[0] if date_range[0] else None,
+            'last_test': date_range[1] if date_range[1] else None
+        }
 
 
 def main():

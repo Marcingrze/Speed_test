@@ -9,6 +9,7 @@ Provides an intuitive interface for running speed tests with real-time progress 
 import os
 import sys
 from pathlib import Path
+import threading
 
 # Set environment variables for Kivy before importing
 os.environ['KIVY_GL_BACKEND'] = 'gl'
@@ -300,14 +301,18 @@ class SpeedTestMainScreen(MDScreen):
         self.settings_dialog = None
 
         # Check initial network status
-        Clock.schedule_once(self.check_initial_network, 1)
+        Clock.schedule_once(self.check_initial_network, 0.5)
     
     def check_initial_network(self, dt):
-        """Check network connectivity on app start."""
-        if self.engine.check_network_connectivity():
-            self.status_text = "Network connection active"
-        else:
-            self.status_text = "No network connection detected"
+        """Check network connectivity on app start (non-blocking)."""
+        def _bg_check():
+            ok = self.engine.check_network_connectivity()
+            Clock.schedule_once(lambda _dt: self._set_network_status(ok), 0)
+        threading.Thread(target=_bg_check, daemon=True).start()
+    
+    def _set_network_status(self, ok: bool):
+        self.status_text = "Network connection active" if ok else "No network connection detected"
+        if not ok:
             Snackbar(
                 text="No internet connection detected",
                 snackbar_x="10dp",
@@ -321,14 +326,14 @@ class SpeedTestMainScreen(MDScreen):
         if self.is_testing:
             return
             
-        # Check network connectivity first
-        if not self.engine.check_network_connectivity():
-            Snackbar(
-                text="No internet connection detected",
-                snackbar_x="10dp",
-                snackbar_y="10dp",
-            ).open()
-            return
+        # Check network connectivity first (non-blocking UX)
+        # Optimistic start + background recheck to avoid blocking UI
+        prev_status = self.status_text
+        def _bg_recheck():
+            ok = self.engine.check_network_connectivity()
+            if not ok:
+                Clock.schedule_once(lambda _dt: self._handle_no_network_during_start(prev_status), 0)
+        threading.Thread(target=_bg_recheck, daemon=True).start()
         
         # CRITICAL: Properly cleanup any existing Clock events
         if self.update_event:
@@ -360,6 +365,16 @@ class SpeedTestMainScreen(MDScreen):
                 snackbar_x="10dp",
                 snackbar_y="10dp",
             ).open()
+    
+    def _handle_no_network_during_start(self, previous_status: str):
+        if self.is_testing:
+            self.cancel_speed_test()
+        self.status_text = "No internet connection detected"
+        Snackbar(
+            text="No internet connection detected",
+            snackbar_x="10dp",
+            snackbar_y="10dp",
+        ).open()
     
     def update_progress(self, dt):
         """Update progress and check for results with atomic queue operations."""
@@ -423,6 +438,34 @@ class SpeedTestMainScreen(MDScreen):
                         snackbar_y="10dp",
                         bg_color=(0.8, 0.4, 0, 1)  # Orange warning color
                     ).open()
+
+            # Update Plasma widget cache
+            try:
+                from pathlib import Path
+                import json as json_module
+                from datetime import datetime as dt
+
+                cache_dir = Path.home() / '.cache' / 'plasma-speedtest'
+                cache_file = cache_dir / 'widget_cache.json'
+                cache_dir.mkdir(parents=True, exist_ok=True)
+
+                cache_data = {
+                    "status": "success",
+                    "download": round(result.download_mbps, 1),
+                    "upload": round(result.upload_mbps, 1),
+                    "ping": round(result.ping_ms, 0),
+                    "server": result.server_info,
+                    "timestamp": dt.fromtimestamp(result.timestamp).strftime("%Y-%m-%d %H:%M:%S"),
+                    "is_valid": result.is_valid,
+                    "warnings": result.warnings
+                }
+
+                with open(cache_file, 'w', encoding='utf-8') as f:
+                    json_module.dump(cache_data, f, ensure_ascii=False, indent=2)
+
+                print(f"Widget cache updated: {cache_file}")
+            except Exception as e:
+                print(f"Note: Failed to update widget cache: {e}")
 
             # Show warnings if any
             if result.warnings:
@@ -567,7 +610,18 @@ class SpeedTestApp(MDApp):
         Builder.load_string(KV)
 
         # Return main screen
-        return SpeedTestMainScreen()
+        screen = SpeedTestMainScreen()
+        self.main_screen = screen
+        return screen
+
+
+    def on_stop(self):
+        """Ensure DB connection is closed on app shutdown."""
+        try:
+            if hasattr(self, 'main_screen') and hasattr(self.main_screen, 'storage'):
+                self.main_screen.storage.close()
+        except Exception:
+            pass
 
 
 def main():

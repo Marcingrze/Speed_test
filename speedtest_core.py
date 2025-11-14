@@ -443,11 +443,10 @@ class SpeedTestEngine:
             error_msg = str(e).lower()
             if 'fileno' in error_msg or 'stderr' in error_msg or 'stdout' in error_msg:
                 return SpeedTestResult(warnings=[f"Python 3.13 compatibility error: {e}"])
-            else:
-                # Unexpected AttributeError - log full traceback for debugging
-                import traceback
-                traceback.print_exc()
-                return SpeedTestResult(warnings=[f"Unexpected AttributeError: {e}. Check logs for details."])
+            # Unexpected AttributeError - log full traceback for debugging to avoid masking bugs
+            import traceback
+            traceback.print_exc()
+            return SpeedTestResult(warnings=[f"Unexpected AttributeError: {e}. Check logs for details."])
         except Exception as e:
             return SpeedTestResult(warnings=[f"Unexpected error: {e}"])
         finally:
