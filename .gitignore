@@ -34,3 +34,4 @@ speedtest_config.json
 *.db-journal
 speedtest_history.db*
 plasma-widget/speedtest_history.db*
+speedtest_history.db
