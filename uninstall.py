@@ -199,10 +199,16 @@ class SpeedTestUninstaller:
     def remove_database(self, remove_data: bool = False) -> bool:
         """Usuń bazę danych z wynikami testów."""
         if remove_data:
-            db_file = self.app_dir / "speedtest_history.db"
+            # Use new unified database location
+            db_file = Path.home() / '.local' / 'share' / 'speedtest' / 'speedtest_history.db'
             if db_file.exists():
                 try:
                     db_file.unlink()
+                    # Also remove WAL and SHM files if they exist
+                    for ext in ['-wal', '-shm']:
+                        wal_file = db_file.parent / f"{db_file.name}{ext}"
+                        if wal_file.exists():
+                            wal_file.unlink()
                     print("✓ Removed test results database")
                 except (OSError, IOError) as e:
                     print(f"✗ Failed to remove database: {e}")
@@ -211,7 +217,7 @@ class SpeedTestUninstaller:
                 print("- Test results database not found")
         else:
             print("- Keeping test results database (use --remove-data to delete)")
-        
+
         return True
     
     def clean_pycache(self) -> bool:
@@ -246,27 +252,28 @@ class SpeedTestUninstaller:
         print("\n" + "=" * 40)
         print("Uninstallation Summary")
         print("=" * 40)
-        
+
         if not remove_config:
             config_file = self.app_dir / "speedtest_config.json"
             if config_file.exists():
                 print(f"Configuration preserved: {config_file}")
-        
+
         if not remove_data:
-            db_file = self.app_dir / "speedtest_history.db"
+            db_file = Path.home() / '.local' / 'share' / 'speedtest' / 'speedtest_history.db'
             if db_file.exists():
                 print(f"Test data preserved: {db_file}")
-        
+
         print(f"Application directory: {self.app_dir}")
         print("\nTo completely remove the application:")
         print(f"  rm -rf {self.app_dir}")
-        
+
         if not remove_config or not remove_data:
             print("\nTo remove preserved files later:")
             if not remove_config:
                 print(f"  rm {self.app_dir}/speedtest_config.json")
             if not remove_data:
-                print(f"  rm {self.app_dir}/speedtest_history.db")
+                db_file = Path.home() / '.local' / 'share' / 'speedtest' / 'speedtest_history.db'
+                print(f"  rm {db_file}")
     
     def run_uninstallation(self, remove_config: bool = False, remove_data: bool = False) -> bool:
         """Uruchom pełny proces deinstalacji."""

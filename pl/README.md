@@ -1,32 +1,34 @@
-# Internet Speed Test Tool
+# Narzędzie do Testowania Prędkości Internetu
 
-Narzędzie do testowania prędkości połączenia internetowego z zaawansowaną obsługą błędów, konfiguracją i walidacją wyników. Dostępne jako aplikacja konsolowa (CLI), graficzny interfejs użytkownika (GUI) oraz widget KDE Plasma.
+Profesjonalne narzędzie do testowania prędkości internetu z zaawansowaną obsługą błędów, konfiguracją i walidacją wyników. Dostępne jako aplikacja konsolowa (CLI), interfejs graficzny (GUI) oraz widget KDE Plasma.
+
+> **Dokumentacja angielska**: [README.md](../README.md)
 
 ## 📋 Opis
 
-To jest profesjonalne narzędzie do testowania prędkości internetu napisane w Pythonie, które wykorzystuje serwis speedtest.net do pomiaru:
-- Prędkości pobierania (download)
-- Prędkości wysyłania (upload)  
-- Opóźnienia (ping/latencja)
+Profesjonalne narzędzie do testowania prędkości internetu oparte na Python, które wykorzystuje speedtest.net do pomiaru:
+- Prędkości pobierania
+- Prędkości wysyłania
+- Opóźnienia (ping)
 
-### ✨ Główne funkcjonalności
+### ✨ Kluczowe Funkcje
 
-- **Trzy interfejsy** - konsola (CLI), graficzny interfejs (GUI KivyMD) i widget KDE Plasma
-- **Zaawansowana obsługa błędów** - automatyczne ponowne próby przy przejściowych problemach sieciowych
-- **Elastyczna konfiguracja** - wszystkie parametry można dostosować przez plik JSON
+- **Trzy interfejsy** - CLI, GUI (KivyMD) oraz widget KDE Plasma
+- **Zaawansowana obsługa błędów** - automatyczne ponawianie prób przy przejściowych problemach sieciowych
+- **Elastyczna konfiguracja** - wszystkie parametry konfigurowalne przez plik JSON
 - **Walidacja wyników** - inteligentne ostrzeżenia o nieprawdopodobnych wynikach
-- **Progresywne informacje** - szczegółowe informacje o postępie testów
-- **Sprawdzenie łączności** - wstępna weryfikacja połączenia internetowego
-- **Przyjazny interfejs** - czytelny wyświetlacz wyników z formatowaniem
-- **Modern Material Design** - nowoczesny GUI z animacjami i responsywnym designem
-- **Widget na pulpicie KDE** - lekki widget Plasma z automatycznym odświeżaniem
-- **Historia wyników** - zapisywanie testów w bazie SQLite z eksportem do CSV/JSON
+- **Raportowanie postępu** - szczegółowe informacje o etapach testu
+- **Sprawdzanie połączenia** - wstępna weryfikacja połączenia internetowego
+- **Przyjazny interfejs** - przejrzyste wyświetlanie wyników z formatowaniem
+- **Nowoczesny Material Design** - współczesny GUI z animacjami i responsywnym designem
+- **Widget dla pulpitu KDE** - lekki widget Plasma z automatycznym odświeżaniem
+- **Historia testów** - przechowywanie wyników w bazie SQLite z eksportem do CSV/JSON
 
-## 🚀 Szybki start
+## 🚀 Szybki Start
 
-### Wymagania systemowe
+### Wymagania Systemowe
 
-- Python 3.6+
+- Python 3.8+ (3.6+ tylko dla CLI, ale zależności GUI wymagają 3.8+)
 - Połączenie internetowe
 - Środowisko wirtualne (zalecane)
 
@@ -38,52 +40,59 @@ git clone <repository-url>
 cd Speed_test
 ```
 
-2. **Aktywuj środowisko wirtualne**
+2. **Skonfiguruj używając Makefile (zalecane)**
 ```bash
-source ebv/bin/activate
+make setup          # Utwórz venv i zainstaluj zależności
+make run-cli        # Uruchom test CLI
+make run-gui        # Uruchom test GUI
 ```
 
-3. **Zainstaluj zależności**
+3. **Lub ręcznie**
 ```bash
+python3 -m venv speedtest_env
+source speedtest_env/bin/activate  # W Windows: speedtest_env\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Podstawowe użycie
+### Podstawowe Użycie
 
-**Aplikacja konsolowa (CLI):**
+**Aplikacja CLI:**
 ```bash
 # Uruchom test z domyślną konfiguracją
 python sp.py
+
+# Uruchom test z wyjściem JSON
+python sp.py --json
 
 # Utwórz plik konfiguracyjny do dostosowania
 python sp.py --create-config
 ```
 
-### Jak działa CLI
-- sp.py jest lekką nakładką, która w całości deleguje logikę do speedtest_core.
-- Konfiguracja jest ładowana i walidowana przez SpeedTestConfig.
-- Pomiar (z retry i walidacją) wykonuje SpeedTestEngine.
-- sp.py tylko obsługuje flagę --create-config i wyświetla wyniki.
+### Jak Działa CLI
+- sp.py jest lekką warstwą, która deleguje całą logikę do speedtest_core
+- Konfiguracja jest wczytywana i walidowana przez SpeedTestConfig
+- Testowanie (z ponawianiem i walidacją) jest wykonywane przez SpeedTestEngine
+- sp.py obsługuje tylko flagę --create-config i wyświetla wyniki
 
-**Aplikacja graficzna (GUI):**
+**Aplikacja GUI:**
 ```bash
 # Uruchom interfejs graficzny
 python speedtest_gui.py
 ```
 
-## 🎨 Interfejs graficzny (GUI)
+## 🎨 Graficzny Interfejs Użytkownika (GUI)
 
-### Funkcjonalności GUI
+### Funkcje GUI
 
-- **Modern Material Design** - nowoczesny wygląd zgodny z Material Design
-- **Real-time progress** - animowany pasek postępu z informacjami o etapie testu
-- **Responsive design** - automatyczne dostosowanie do rozmiaru okna
-- **Intuitive controls** - prosty interfejs z przyciskami Start/Stop
-- **Visual results** - przejrzyste wyświetlanie wyników w kartach
-- **Error handling** - przyjazne komunikaty błędów i ostrzeżeń
-- **Settings dialog** - możliwość konfiguracji (planowane w przyszłych wersjach)
+- **Nowoczesny Material Design** - współczesny wygląd zgodny z wytycznymi Material Design
+- **Postęp w czasie rzeczywistym** - animowany pasek postępu z informacjami o etapie testu
+- **Responsywny design** - automatyczne dostosowanie rozmiaru okna
+- **Intuicyjne sterowanie** - prosty interfejs z przyciskami Start/Stop
+- **Wizualizacja wyników** - przejrzyste wyświetlanie wyników w kartach
+- **Obsługa błędów** - przyjazne komunikaty o błędach i ostrzeżeniach
+- **Dialog ustawień** - opcje konfiguracji (planowane w przyszłych wersjach)
 
-### Uruchomienie GUI
+### Uruchamianie GUI
 
 ```bash
 # Uruchom aplikację graficzną
@@ -93,28 +102,28 @@ python speedtest_gui.py
 ### Architektura GUI
 
 - **speedtest_gui.py** - główna aplikacja GUI z interfejsem KivyMD
-- **speedtest_core.py** - logika biznesowa wspólna dla CLI i GUI
-- **Asynchronous testing** - testy działają w tle bez blokowania interfejsu
-- **Progress callbacks** - real-time aktualizacje postępu
-- **Thread safety** - bezpieczne operacje wielowątkowe
+- **speedtest_core.py** - logika biznesowa współdzielona przez CLI i GUI
+- **Asynchroniczne testowanie** - testy działają w tle bez blokowania interfejsu
+- **Callbacki postępu** - aktualizacje postępu w czasie rzeczywistym
+- **Bezpieczeństwo wątków** - bezpieczne operacje wielowątkowe
 
 ## 🖥️ Widget KDE Plasma
 
-Widget na pulpit KDE Plasma wyświetlający wyniki testów prędkości.
+Widget dla pulpitu KDE Plasma wyświetlający wyniki testów prędkości.
 
-### Funkcjonalności Widget
+### Funkcje Widgetu
 
-- **Wyświetlanie wyników** - pokazuje prędkość pobierania, wysyłania i ping
+- **Wyświetlanie wyników** - pokazuje prędkości pobierania, wysyłania i ping
 - **Automatyczne odświeżanie** - aktualizacja co 30 sekund
 - **Uruchamianie testów** - przycisk do szybkiego uruchomienia nowego testu
 - **Status sieci** - wskaźnik połączenia internetowego
-- **Tryb kompaktowy** - może być dodany do panelu z tooltip
-- **Integracja z bazą** - korzysta z wspólnej bazy danych SQLite
+- **Tryb kompaktowy** - może być dodany do panelu z podpowiedzią
+- **Integracja z bazą danych** - wykorzystuje współdzieloną bazę SQLite
 
-### Instalacja Widget
+### Instalacja Widgetu
 
 ```bash
-# Instalacja widget
+# Zainstaluj widget
 make install-plasmoid
 
 # Lub ręcznie
@@ -122,38 +131,38 @@ cd plasma-widget
 ./install_plasmoid.sh
 ```
 
-### Dodawanie do pulpitu
+### Dodawanie do Pulpitu
 
-1. Kliknij prawym przyciskiem myszy na pulpit
-2. Wybierz **"Dodaj widgety"**
+1. Kliknij prawym przyciskiem myszy na pulpicie
+2. Wybierz **"Dodaj widżety"**
 3. Wyszukaj **"Speed Test"**
 4. Przeciągnij widget na pulpit lub panel
 
-### Użycie Widget
+### Korzystanie z Widgetu
 
-- **Zobacz wyniki**: Widget wyświetla ostatnie wyniki z bazy danych
-- **Uruchom test**: Kliknij przycisk "Run Speed Test"
-- **Odśwież**: Ikona odświeżania ręcznie aktualizuje wyniki
-- **Tryb panelu**: Dodaj do panelu aby mieć szybki podgląd
+- **Wyświetlanie wyników**: Widget pokazuje najnowsze wyniki z bazy danych
+- **Uruchomienie testu**: Kliknij przycisk "Run Speed Test"
+- **Odświeżanie**: Ikona odświeżania ręcznie aktualizuje wyniki
+- **Tryb panelu**: Dodaj do panelu dla szybkiego przeglądu
 
-Więcej informacji w [plasma-widget/README.md](plasma-widget/README.md)
+Więcej informacji w [plasma-widget/README.md](../plasma-widget/README.md)
 
 ## ⚙️ Konfiguracja
 
-### Utworzenie pliku konfiguracyjnego
+### Tworzenie Pliku Konfiguracyjnego
 
 ```bash
 python sp.py --create-config
 ```
 
-To utworzy plik `speedtest_config.json` z domyślnymi ustawieniami.
+To polecenie tworzy plik `speedtest_config.json` z domyślnymi ustawieniami.
 
-### Dostępne opcje konfiguracji
+### Dostępne Opcje Konfiguracji
 
 ```json
 {
   "bits_to_mbps": 1000000,                    // Konwersja bitów na Mbps
-  "connectivity_check_timeout": 10,           // Timeout sprawdzenia łączności (s)
+  "connectivity_check_timeout": 10,           // Timeout sprawdzania połączenia (s)
   "speedtest_timeout": 60,                    // Timeout głównego testu (s)
   "max_retries": 3,                          // Maksymalna liczba ponownych prób
   "retry_delay": 2,                          // Opóźnienie między próbami (s)
@@ -161,13 +170,14 @@ To utworzy plik `speedtest_config.json` z domyślnymi ustawieniami.
   "max_reasonable_speed_gbps": 10,           // Maksymalna rozsądna prędkość (Gbps)
   "max_typical_ping_ms": 1000,               // Próg typowego pingu (ms)
   "max_reasonable_ping_ms": 10000,           // Maksymalny rozsądny ping (ms)
-  "show_detailed_progress": true             // Szczegółowe informacje o postępie
+  "show_detailed_progress": true,            // Szczegółowe informacje o postępie
+  "save_results_to_database": true           // Zapisuj wyniki do bazy SQLite
 }
 ```
 
-## 📊 Przykład użycia
+## 📊 Przykłady Użycia
 
-### Standardowe uruchomienie
+### Standardowe Uruchomienie
 
 ```bash
 $ python sp.py
@@ -185,11 +195,13 @@ Upload:   45.67 Mbps
 Ping:     12.4 ms
 Server:   Orange Polska (Warsaw)
 ========================================
+
+Result saved to database (ID: 1).
 ```
 
-Uwaga: Ewentualne ostrzeżenia (np. nietypowo wysokie prędkości) zostaną wypisane pod wynikami w sekcji "Warnings:".
+Uwaga: Wszelkie ostrzeżenia (np. o niezwykle wysokich prędkościach) będą wyświetlane poniżej wyników w sekcji "Warnings:".
 
-### Uruchomienie z własną konfiguracją
+### Uruchomienie z Niestandardową Konfiguracją
 
 ```bash
 # 1. Utwórz plik konfiguracyjny
@@ -198,60 +210,71 @@ python sp.py --create-config
 # 2. Edytuj speedtest_config.json według potrzeb
 nano speedtest_config.json
 
-# 3. Uruchom z własną konfiguracją
+# 3. Uruchom z niestandardową konfiguracją
 python sp.py
 ```
 
-## 🔧 Struktura projektu
+### Tryb Wyjścia JSON
+
+```bash
+# Wyjście JSON czytelne dla maszyn
+python sp.py --json
+```
+
+## 🔧 Struktura Projektu
 
 ```
 Speed_test/
 ├── sp.py                           # Lekki frontend CLI delegujący do speedtest_core
 ├── speedtest_gui.py                # Aplikacja GUI (Kivy/KivyMD)
-├── speedtest_core.py               # Logika biznesowa (wspólna dla CLI/GUI)
-├── requirements.txt                # Zależności Pythona
-├── speedtest_config.json.example   # Przykład konfiguracji
+├── speedtest_core.py               # Logika biznesowa (współdzielona przez CLI/GUI)
+├── scheduled_testing.py            # Harmonogram w tle dla automatycznego testowania
+├── test_results_storage.py         # Przechowywanie SQLite z możliwością eksportu
+├── config_validator.py             # Walidacja konfiguracji
+├── requirements.txt                # Zależności Python
+├── speedtest_config.json.example   # Przykładowa konfiguracja
 ├── speedtest_config.json          # Konfiguracja użytkownika (ignorowana przez git)
-├── README.md                      # Ta dokumentacja
-├── ebv/                          # Środowisko wirtualne Pythona
-│   ├── bin/                       # Pliki wykonywalne
-│   └── lib/                       # Pakiety Pythona
-└── .gitignore                     # Wzorce ignorowane przez git
+├── Makefile                        # Automatyzacja budowania
+├── plasma-widget/                  # Widget KDE Plasma
+├── README.md                      # Dokumentacja angielska
+├── pl/                            # Dokumentacja polska
+├── speedtest_env/                 # Wirtualne środowisko Python
+└── .gitignore                     # Wzorce ignorowane przez Git
 ```
 
-## 🛠️ Funkcjonalności zaawansowane
+## 🛠️ Zaawansowane Funkcje
 
-### Obsługa błędów
+### Obsługa Błędów
 
-- **Automatyczne ponawianie**: Przy przejściowych problemach sieciowych
-- **Sprawdzenie łączności**: Weryfikacja połączenia przed testem
-- **Graceful degradation**: Czytelne komunikaty o błędach
-- **Walidacja wyników**: Ostrzeżenia o nietypowych wynikach
+- **Automatyczne ponawianie**: Dla przejściowych problemów sieciowych
+- **Sprawdzanie połączenia**: Weryfikacja połączenia przed testem
+- **Łagodna degradacja**: Czytelne komunikaty o błędach
+- **Walidacja wyników**: Ostrzeżenia o niezwykłych wynikach
 
-### Inteligentna walidacja
+### Inteligentna Walidacja
 
-Tool automatycznie wykrywa i ostrzega o:
+Narzędzie automatycznie wykrywa i ostrzega o:
 - Nieprawdopodobnie wysokich prędkościach (>1 Gbps)
 - Ekstremalnie wysokich opóźnieniach (>1000 ms)
 - Bardzo niskich prędkościach (<1 Mbps)
-- Błędnych danych pomiarowych
+- Nieprawidłowych danych pomiarowych
 
-### Kody wyjścia
+### Kody Wyjścia
 
 - `0`: Test zakończony pomyślnie
-- `1`: Test zakończony błędem (brak internetu, błąd pomiaru)
+- `1`: Test nieudany (brak internetu, błąd pomiaru)
 
-## 🐛 Rozwiązywanie problemów
+## 🐛 Rozwiązywanie Problemów
 
-### Brak połączenia internetowego
+### Brak Połączenia Internetowego
 
 ```
 Error: No internet connection detected.
 Please check your network connection and try again.
 ```
-**Rozwiązanie**: Sprawdź połączenie internetowe i spróbuj ponownie.
+**Rozwiązanie**: Sprawdź swoje połączenie internetowe i spróbuj ponownie.
 
-### Błędy konfiguracji
+### Błędy Konfiguracji
 
 ```
 Warning: Could not load config file speedtest_config.json: ...
@@ -259,12 +282,12 @@ Using default configuration.
 ```
 **Rozwiązanie**: Sprawdź składnię JSON w pliku konfiguracyjnym lub usuń plik, aby użyć domyślnej konfiguracji.
 
-### Wysokie opóźnienia/niskie prędkości
+### Wysokie Opóźnienie/Niskie Prędkości
 
 ```
 Warning: High latency (1500 ms) detected - connection may be slow
 ```
-**Rozwiązanie**: To jest informacyjne - wskazuje na problemy z łączem internetowym.
+**Rozwiązanie**: To informacja - wskazuje na problemy z połączeniem internetowym.
 
 ### Problemy z GUI
 
@@ -282,15 +305,15 @@ pip install -r requirements.txt
 AttributeError: 'ProcessingStream' object has no attribute 'fileno'
 ```
 
-**Automatyczne rozwiązanie**: Od wersji bieżącej patch jest automatycznie stosowany podczas instalacji.
+**Automatyczne rozwiązanie**: Patch jest automatycznie stosowany podczas instalacji.
 
-**Ręczne rozwiązanie** (jeśli potrzebne):
+**Rozwiązanie ręczne** (jeśli potrzebne):
 ```bash
-source speedtest_env/bin/activate  # lub ebv/bin/activate
+source speedtest_env/bin/activate
 python3 fix_speedtest_py313.py
 ```
 
-**Alternatywnie** - zastosuj patch manualnie, dodając `AttributeError` do obsługi wyjątków w pliku `speedtest.py` linii ~181:
+**Alternatywa** - zastosuj patch ręcznie dodając `AttributeError` do obsługi wyjątków w `speedtest.py` około linii 181:
 ```python
 # Przed:
 except OSError:
@@ -302,43 +325,151 @@ except (OSError, AttributeError):
 
 ### Aplikacja CLI
 - **speedtest-cli** (v2.1.3): Biblioteka do testowania prędkości internetu
-- **Python 3.6+**: Ze wsparciem dla type hints
+- **Python 3.8+**: Z obsługą podpowiedzi typów
 
-### Aplikacja GUI (dodatkowo)
-- **Kivy** (v2.3.1): Framework do tworzenia aplikacji multiplatformowych
-- **KivyMD** (v1.2.0): Material Design komponenty dla Kivy
+### Aplikacja GUI (dodatkowe)
+- **Kivy** (v2.3.1): Framework aplikacji wieloplatformowych
+- **KivyMD** (v1.2.0): Komponenty Material Design dla Kivy
 - **Pillow**: Obsługa obrazów w Kivy
 
-## 🤝 Rozwój projektu
+### Baza Danych i Przechowywanie
+- **SQLite3**: Wbudowane w Python, używane do przechowywania wyników testów
 
-### Środowisko deweloperskie
+## 💾 Przechowywanie Wyników Testów i Baza Danych
 
-```bash
-# Aktywacja środowiska
-source ebv/bin/activate
+Wszystkie komponenty (CLI, GUI, harmonogram, widget Plasma) współdzielą ujednoliconą bazę danych SQLite dla wyników testów.
 
-# Instalacja zależności
-pip install -r requirements.txt
+### Lokalizacja Bazy Danych
 
-# Testowanie zmian CLI
-python sp.py
-
-# Testowanie zmian GUI
-python speedtest_gui.py
+**Ujednolicona lokalizacja** (wszystkie komponenty):
+```
+~/.local/share/speedtest/speedtest_history.db
 ```
 
-### Dodawanie nowych funkcji
+Katalog bazy danych jest automatycznie tworzony przy pierwszym użyciu. Ta scentralizowana lokalizacja zapewnia:
+- Wszystkie interfejsy mają dostęp do tej samej historii testów
+- Łatwa kopia zapasowa i zarządzanie danymi
+- Spójne dane do analizy we wszystkich narzędziach
 
-1. Edytuj odpowiedni plik (`sp.py` dla CLI, `speedtest_gui.py` dla GUI, `speedtest_core.py` dla logiki wspólnej)
-2. Testuj zmiany w różnych scenariuszach sieciowych
-3. Aktualizuj dokumentację w razie potrzeby
+### Schemat Bazy Danych
+
+Baza danych przechowuje kompleksowe informacje o testach:
+
+| Kolumna | Typ | Opis |
+|--------|------|-------------|
+| `id` | INTEGER | Automatycznie zwiększany klucz główny |
+| `timestamp` | REAL | Znacznik czasu Unix (czas systemowy wykonania testu) |
+| `download_mbps` | REAL | Prędkość pobierania w Mbps |
+| `upload_mbps` | REAL | Prędkość wysyłania w Mbps |
+| `ping_ms` | REAL | Opóźnienie w milisekundach |
+| `server_info` | TEXT | Informacje o serwerze testu prędkości |
+| `is_valid` | BOOLEAN | Status walidacji wyniku |
+| `warnings` | TEXT | Tablica JSON z ostrzeżeniami (jeśli są) |
+| `test_date` | TEXT | Data/czas sformatowana ISO 8601 (np. "2025-11-15T13:48:11.601623") |
+
+**Indeksy**: Utworzone na `timestamp` i `test_date` dla szybkich zapytań.
+
+**Tryb WAL**: Baza danych używa Write-Ahead Logging dla lepszego współbieżnego dostępu.
+
+### Automatyczne Zapisywanie Wyników
+
+Wyniki są automatycznie zapisywane, gdy `save_results_to_database` jest włączone w konfiguracji:
+
+```json
+{
+  "save_results_to_database": true
+}
+```
+
+- **CLI**: Zapisuje po każdym udanym teście, wyświetla ID rekordu
+- **GUI**: Cicho zapisuje wyniki w tle
+- **Harmonogram**: Zawsze zapisuje wyniki niezależnie od ustawienia konfiguracji
+- **Widget**: Odczytuje najnowsze wyniki ze współdzielonej bazy danych
+
+### Eksportowanie Danych
+
+Użyj polecenia `speedtest-storage` do eksportu danych:
+
+```bash
+# Eksportuj ostatnie 30 dni do CSV
+speedtest-storage export-csv --days 30 --output results.csv
+
+# Eksportuj wszystkie wyniki do JSON
+speedtest-storage export-json --output results.json
+
+# Wyświetl statystyki
+speedtest-storage stats --days 7
+```
+
+### Ręczny Dostęp do Bazy Danych
+
+Możesz uzyskać bezpośredni dostęp do bazy danych za pomocą dowolnego klienta SQLite:
+
+```bash
+# Używając wiersza poleceń sqlite3
+sqlite3 ~/.local/share/speedtest/speedtest_history.db "SELECT * FROM test_results ORDER BY timestamp DESC LIMIT 10;"
+```
+
+### Konserwacja Bazy Danych
+
+**Kopia zapasowa**:
+```bash
+cp ~/.local/share/speedtest/speedtest_history.db ~/speedtest_backup.db
+```
+
+**Reset** (usuń wszystkie wyniki):
+```bash
+rm ~/.local/share/speedtest/speedtest_history.db*
+```
+
+Uwaga: Znak wieloznaczny `*` usuwa również pliki WAL i SHM utworzone przez SQLite.
+
+## 🧪 Testowanie i Rozwój
+
+### Środowisko Deweloperskie
+
+```bash
+# Skonfiguruj środowisko deweloperskie
+make dev-setup      # Instaluje pytest, black, flake8, mypy
+
+# Uruchom testy
+make test           # Szybkie testy funkcjonalności
+make test-full      # Pełny zestaw testów
+make test-offline   # Testy bez sieci
+
+# Jakość kodu
+make lint           # Uruchom flake8
+make format         # Formatuj za pomocą black
+```
+
+### Uruchamianie Testów
+
+```bash
+# Szybkie testy
+./speedtest_env/bin/python3 test_installation.py --quick
+
+# Pełny zestaw testów
+./speedtest_env/bin/python3 test_installation.py
+
+# Testy offline
+./speedtest_env/bin/python3 test_installation.py --no-network
+
+# Testy walidacji konfiguracji
+./speedtest_env/bin/python3 test_config_validation.py
+```
+
+### Dodawanie Nowych Funkcji
+
+1. Edytuj odpowiedni plik (`sp.py` dla CLI, `speedtest_gui.py` dla GUI, `speedtest_core.py` dla wspólnej logiki)
+2. Przetestuj zmiany w różnych scenariuszach sieciowych
+3. Zaktualizuj dokumentację według potrzeb
 4. Commituj zmiany z opisowymi komunikatami
 
 ## 📄 Licencja
 
-Projekt jest dostępny na licencji MIT. Szczegóły w pliku LICENSE.
+Ten projekt jest dostępny na licencji MIT. Zobacz plik LICENSE dla szczegółów.
 
-### Licencje Third-Party
+### Licencje Bibliotek Zewnętrznych
 
 Ten projekt wykorzystuje następujące biblioteki:
 - **speedtest-cli** - Apache License 2.0 (pełny tekst w LICENSE-APACHE-2.0)
@@ -346,16 +477,16 @@ Ten projekt wykorzystuje następujące biblioteki:
 - **KivyMD** - MIT License
 - **Pillow** - HPND License
 
-Zobacz plik NOTICE dla szczegółowych informacji o atrybuacji i licencjach.
+Zobacz plik NOTICE dla szczegółowych informacji o przypisaniu i licencjach.
 
-## 🔗 Linki użyteczne
+## 🔗 Przydatne Linki
 
-- [speedtest-cli documentation](https://pypi.org/project/speedtest-cli/)
-- [Kivy documentation](https://kivy.org/doc/stable/)
-- [KivyMD documentation](https://kivymd.readthedocs.io/)
-- [Python Virtual Environments](https://docs.python.org/3/tutorial/venv.html)
-- [JSON Configuration Format](https://www.json.org/)
+- [Dokumentacja speedtest-cli](https://pypi.org/project/speedtest-cli/)
+- [Dokumentacja Kivy](https://kivy.org/doc/stable/)
+- [Dokumentacja KivyMD](https://kivymd.readthedocs.io/)
+- [Wirtualne Środowiska Python](https://docs.python.org/3/tutorial/venv.html)
+- [Format Konfiguracji JSON](https://www.json.org/)
 
 ---
 
-**Uwaga**: Ten tool wymaga aktywnego połączenia internetowego do prawidłowego działania. Wszystkie testy są przeprowadzane z wykorzystaniem serwisów speedtest.net.
+**Uwaga**: To narzędzie wymaga aktywnego połączenia internetowego do prawidłowego działania. Wszystkie testy są przeprowadzane przy użyciu usług speedtest.net.

@@ -335,6 +335,95 @@ except (OSError, AttributeError):
 ### Database & Storage
 - **SQLite3**: Built into Python, used for test result storage
 
+## 💾 Test Result Storage & Database
+
+All components (CLI, GUI, scheduler, Plasma widget) share a unified SQLite database for test results.
+
+### Database Location
+
+**Unified location** (all components):
+```
+~/.local/share/speedtest/speedtest_history.db
+```
+
+The database directory is automatically created on first use. This centralized location ensures:
+- All interfaces access the same test history
+- Easy backup and data management
+- Consistent data for analysis across all tools
+
+### Database Schema
+
+The database stores comprehensive test information:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INTEGER | Auto-incremented primary key |
+| `timestamp` | REAL | Unix timestamp (system time when test was executed) |
+| `download_mbps` | REAL | Download speed in Mbps |
+| `upload_mbps` | REAL | Upload speed in Mbps |
+| `ping_ms` | REAL | Latency in milliseconds |
+| `server_info` | TEXT | Speed test server information |
+| `is_valid` | BOOLEAN | Result validation status |
+| `warnings` | TEXT | JSON array of warnings (if any) |
+| `test_date` | TEXT | ISO 8601 formatted date/time (e.g., "2025-11-15T13:48:11.601623") |
+
+**Indexes**: Created on `timestamp` and `test_date` for fast queries.
+
+**WAL Mode**: Database uses Write-Ahead Logging for better concurrent access.
+
+### Automatic Result Saving
+
+Results are automatically saved when `save_results_to_database` is enabled in configuration:
+
+```json
+{
+  "save_results_to_database": true
+}
+```
+
+- **CLI**: Saves after each successful test, displays record ID
+- **GUI**: Silently saves results in background
+- **Scheduler**: Always saves results regardless of config setting
+- **Widget**: Reads latest results from shared database
+
+### Exporting Data
+
+Use the `speedtest-storage` command for data export:
+
+```bash
+# Export last 30 days to CSV
+speedtest-storage export-csv --days 30 --output results.csv
+
+# Export all results to JSON
+speedtest-storage export-json --output results.json
+
+# View statistics
+speedtest-storage stats --days 7
+```
+
+### Manual Database Access
+
+You can access the database directly with any SQLite client:
+
+```bash
+# Using sqlite3 command line
+sqlite3 ~/.local/share/speedtest/speedtest_history.db "SELECT * FROM test_results ORDER BY timestamp DESC LIMIT 10;"
+```
+
+### Database Maintenance
+
+**Backup**:
+```bash
+cp ~/.local/share/speedtest/speedtest_history.db ~/speedtest_backup.db
+```
+
+**Reset** (delete all results):
+```bash
+rm ~/.local/share/speedtest/speedtest_history.db*
+```
+
+Note: The `*` wildcard also removes WAL and SHM files created by SQLite.
+
 ## 🧪 Testing & Development
 
 ### Development Environment

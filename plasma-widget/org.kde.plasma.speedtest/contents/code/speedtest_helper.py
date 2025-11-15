@@ -151,9 +151,8 @@ def get_last_result() -> Dict[str, Any]:
         Dictionary with test result or error information
     """
     try:
-        # Use absolute path to database in project root
-        db_path = parent_dir / "speedtest_history.db"
-        storage = TestResultStorage(str(db_path))
+        # Use default database path (shared by all components)
+        storage = TestResultStorage()
         results = storage.get_recent_results(limit=1)
 
         if not results:

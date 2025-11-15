@@ -87,9 +87,11 @@ SpeedTestConfig → SpeedTestEngine → SpeedTestResult
 - Export to CSV/JSON, statistics queries
 
 **scheduled_testing.py** - Background scheduler
-- Monotonic time-based interval scheduling
-- Graceful shutdown with signal handlers
+- Monotonic time-based interval scheduling with event-based waiting
+- Graceful shutdown with signal handlers (SIGINT, SIGTERM)
 - Persists results via TestResultStorage
+- Constants: `OVERDUE_YIELD_SECONDS = 0.1`, `MAX_SLEEP_SECONDS = 60`
+- Uses `threading.Event.wait()` for responsive shutdown (not fixed sleep)
 
 **install.py** - Installation script
 - Creates executable wrappers for CLI/GUI/scheduler
@@ -111,25 +113,45 @@ SpeedTestConfig → SpeedTestEngine → SpeedTestResult
 - **contents/ui/main.qml**: QML interface with full and compact representations
 - **contents/code/speedtest_helper.py**: Python backend (gets DB results, runs tests, checks network)
 - Communicates via JSON over PlasmaCore.DataSource executable engine
-- Auto-refreshes every 30 seconds, one-click test execution
-- Works in desktop or panel mode with tooltips
+- Auto-refreshes every 30 seconds, one-click "Run Speed Test" button
+- Background test execution with visual feedback (spinner, notifications)
+- Automatic result detection when test completes (checks every 5s, max 2 minutes)
+- Desktop notifications for test start, completion, and errors
+- Works in desktop or panel mode with dynamic tooltips and busy indicator
 
 ## Configuration System
 
 Config loaded from `speedtest_config.json` (falls back to defaults if missing):
 - Validation rules defined in `SpeedTestConfig.VALIDATION_RULES`
-- Config must stay in sync with `config_validator.py` schema (uses import to avoid drift)
+- `config_validator.py` uses lazy schema building from VALIDATION_RULES (no drift possible)
+- Schema types auto-detected from `DEFAULT_CONFIG` values
 - File locking via `fcntl` on Unix (shared locks during reads)
 - Create config: `python sp.py --create-config`
 
 Key settings: timeouts, retry logic, validation thresholds (typical vs reasonable speeds/pings)
 
+**Important**: `config_validator.py` dynamically builds its schema from `SpeedTestConfig.VALIDATION_RULES` at runtime, ensuring they never drift out of sync. Add new validated fields to `VALIDATION_RULES` in `speedtest_core.py` and they automatically appear in the validator.
+
 ## Test Result Storage
 
-All interfaces (CLI, GUI, scheduler) can persist results to SQLite database (`speedtest_history.db`):
+All interfaces (CLI, GUI, scheduler, Plasma widget) share a unified SQLite database for test results.
+
+**Database location**:
+- **Unified path**: `~/.local/share/speedtest/speedtest_history.db`
+- Directory created automatically on first use
+- All components use the same centralized database via `TestResultStorage.get_default_db_path()`
 
 **Database schema** (`test_results_storage.py`):
-- Timestamps (indexed), download/upload speeds, ping, server info, validation status, warnings
+- `id` (INTEGER): Auto-incremented primary key
+- `timestamp` (REAL): Unix timestamp (system time when test was executed)
+- `download_mbps` (REAL): Download speed in Mbps
+- `upload_mbps` (REAL): Upload speed in Mbps
+- `ping_ms` (REAL): Latency in milliseconds
+- `server_info` (TEXT): Speed test server information
+- `is_valid` (BOOLEAN): Result validation status
+- `warnings` (TEXT): JSON array of warnings (if any)
+- `test_date` (TEXT): ISO 8601 formatted date/time (e.g., "2025-11-15T13:48:11.601623")
+- Indexes on `timestamp` and `test_date` for performance
 - WAL journal mode for concurrent access
 - Busy timeout: 5 seconds
 
@@ -149,7 +171,8 @@ All interfaces (CLI, GUI, scheduler) can persist results to SQLite database (`sp
 - CLI: Results saved automatically after each successful test
 - GUI: Results saved automatically in `handle_test_result()` after successful test
 - Scheduler: Results saved via `TestResultStorage.save_result()` after each test
-- Disable by setting `"save_results_to_database": false` in config file
+- Plasma widget: Reads latest results from shared database via `get_last_result()`
+- Disable saving by setting `"save_results_to_database": false` in config file
 
 ## Dependencies
 
@@ -166,6 +189,8 @@ All interfaces (CLI, GUI, scheduler) can persist results to SQLite database (`sp
 - Progress updates use bounded queues (maxsize=20) to prevent blocking
 - Kivy Clock events schedule UI updates on main thread
 - SQLite uses WAL mode + busy timeout (5s) for concurrent access
+- GUI cleanup uses class-level atexit flag to prevent duplicate registrations
+- Thread join timeout capped at 30s to prevent UI blocking (daemon threads clean up)
 
 ### Error Handling & Retries
 - Retry logic: Fixed delay between attempts (consider exponential backoff in future)
@@ -177,11 +202,15 @@ All interfaces (CLI, GUI, scheduler) can persist results to SQLite database (`sp
 - Two-tier thresholds: typical (warn) vs reasonable (error)
 - Validates: speed units (bits→Mbps conversion), ping ranges, negative values
 - Warnings attached to results for display in UI
+- Widget cache (`update_widget_cache()`) validates `result.is_valid` before caching
+- Invalid results are never cached to prevent misleading widget displays
 
 ### File Operations
 - Config: fcntl shared locks on Unix (Windows msvcrt imported but not used)
 - SQLite: WAL mode, indexed queries, connection reuse via context managers
+- SQLite connection initialization uses temp variable + `isolation_level=None` for atomicity
 - Exports: Handle newlines/encoding for cross-platform CSV/JSON
+- Database files (`*.db`, `*.db-shm`, `*.db-wal`) excluded from git via .gitignore
 
 ## Python 3.13 Compatibility Issue
 
@@ -195,6 +224,64 @@ All interfaces (CLI, GUI, scheduler) can persist results to SQLite database (`sp
 **Manual Fix** (if needed): Run `python fix_speedtest_py313.py` in the venv
 
 **GUI Workaround**: Sets `KIVY_NO_CONSOLELOG=1` to disable console logging
+
+## KDE Plasma Widget Development
+
+### Widget Architecture
+The Plasma widget consists of three main components:
+1. **QML Frontend** (`main.qml`): User interface with two representations
+   - Full representation: Detailed view with results, buttons, status indicators
+   - Compact representation: Panel/tray icon with tooltip
+2. **Python Backend** (`speedtest_helper.py`): Handles all business logic
+   - `get_last`: Retrieves most recent result from database
+   - `run_test`: Launches background speed test via `sp.py`
+   - `check_network`: Verifies network connectivity
+3. **Shell Wrapper** (`run_helper.sh`): Bridges QML DataSource to Python
+
+### Widget Update Flow
+```
+User clicks "Run Test" → helperDS.run("run_test")
+                      ↓
+         speedtest_helper.py executes
+                      ↓
+         Spawns sp.py in background (detached process)
+                      ↓
+         Returns JSON: {"status": "success", "message": "..."}
+                      ↓
+         QML shows notification + spinner
+                      ↓
+         Timer polls every 5s for new results
+                      ↓
+         When timestamp changes → test complete!
+                      ↓
+         Show completion notification + update UI
+```
+
+### Testing Widget Changes
+After modifying QML or Python code:
+```bash
+make install-plasmoid    # Reinstall widget
+make restart-plasma      # Restart Plasma Shell
+```
+
+Or manually:
+```bash
+cd plasma-widget
+./install_plasmoid.sh
+kquitapp6 plasmashell && plasmashell --replace &
+```
+
+### Widget State Management
+- `isRunning`: Boolean flag indicating test in progress
+- `hasData`: True when valid results are loaded
+- `networkConnected`: True when connectivity check passes
+- `lastUpdate`: Timestamp string used for change detection
+- Buttons enabled/disabled based on state combinations
+
+### Debugging Widget
+- Widget logs: `~/.local/share/plasma_speedtest.log`
+- Plasma logs: `journalctl -f | grep plasma`
+- QML console: Check `journalctl` for `[SpeedTest Widget]` messages
 
 ## Code Review Guidelines
 
@@ -237,3 +324,37 @@ Resource management:
 - Connection cleanup (network sockets, file handles)
 - Thread lifecycle (join with timeout, daemon threads)
 - SQLite connection reuse via context managers
+- Atexit handlers for guaranteed cleanup (use class-level flags to prevent duplicates)
+
+## Recent Code Quality Improvements (Jan 2025)
+
+The codebase recently underwent comprehensive code review addressing critical issues:
+
+### Config Validator Architecture
+- **Dynamic schema building**: Schema is built at runtime from `SpeedTestConfig.VALIDATION_RULES`
+- **Lazy initialization**: Schema cached on first access, not at import time
+- **Type inference**: Field types auto-detected from `DEFAULT_CONFIG` values
+- **Zero drift**: Schema and validation rules cannot drift - single source of truth
+
+### Resource Cleanup Patterns
+- **GUI atexit handlers**: Class-level `_atexit_registered` flag prevents duplicate registrations
+- **Cleanup state tracking**: `_cleanup_done` flag for safe multiple calls
+- **SQLite atomicity**: Connection init uses `temp_conn` + `isolation_level=None` pattern
+- **Thread join timeouts**: Capped at 30s to prevent UI freezing (not complex worst-case calculations)
+
+### Widget Cache Security
+- **Result validation**: `update_widget_cache()` checks `result.is_valid` before caching
+- **Invalid result filtering**: Prevents misleading displays in Plasma widget
+- **Status differentiation**: Cache sets `"status": "success" if is_valid else "failed"`
+
+### Scheduler Timing Precision
+- **Named constants**: `OVERDUE_YIELD_SECONDS`, `MAX_SLEEP_SECONDS` instead of magic numbers
+- **Monotonic time reuse**: Calculates sleep duration from already-obtained timestamp
+- **Event-based waiting**: `threading.Event.wait(timeout)` instead of `time.sleep()`
+
+### Error Handling Specificity
+- **Categorized exceptions**: Config errors separated into `IOError/OSError` vs `TypeError/KeyError/ValueError`
+- **Validation vs IO errors**: Different messages for file access vs data validation failures
+- **Lock release comments**: Clarified which `finally` block releases which lock
+
+When making changes, maintain these patterns and quality standards.

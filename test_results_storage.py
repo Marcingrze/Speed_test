@@ -21,8 +21,28 @@ from speedtest_core import SpeedTestResult
 class TestResultStorage:
     """Handles storage and retrieval of speed test results with connection pooling."""
 
-    def __init__(self, db_path: str = "speedtest_history.db"):
-        self.db_path = Path(db_path)
+    @staticmethod
+    def get_default_db_path() -> Path:
+        """Get default database path in user's data directory.
+
+        Returns:
+            Path to database file in ~/.local/share/speedtest/
+        """
+        data_dir = Path.home() / '.local' / 'share' / 'speedtest'
+        data_dir.mkdir(parents=True, exist_ok=True)
+        return data_dir / 'speedtest_history.db'
+
+    def __init__(self, db_path: Optional[str] = None):
+        """Initialize storage with database path.
+
+        Args:
+            db_path: Path to database file. If None, uses default location
+                     in ~/.local/share/speedtest/speedtest_history.db
+        """
+        if db_path is None:
+            self.db_path = self.get_default_db_path()
+        else:
+            self.db_path = Path(db_path)
         self._conn: Optional[sqlite3.Connection] = None
         self.init_database()
 
