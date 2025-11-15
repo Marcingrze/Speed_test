@@ -215,7 +215,7 @@ class SpeedTestConfig:
                         print(f"Error: Configuration file contains invalid JSON: {e}")
                         print(f"Location: Line {e.lineno}, Column {e.colno}")
                         print("Using default configuration.")
-                        return  # Exit early, lock released by outer finally
+                        return  # Exit early, lock released by inner finally before with block closes file
                     finally:
                         _unlock_file(f)
 
@@ -226,10 +226,9 @@ class SpeedTestConfig:
             except (IOError, OSError) as e:
                 print(f"Error accessing configuration file: {e}")
                 print("Using default configuration.")
-            except Exception as e:
-                print(f"Unexpected error loading configuration: {e}")
-                import traceback
-                traceback.print_exc()
+            except (TypeError, KeyError, ValueError) as e:
+                # Validation errors from config processing
+                print(f"Configuration validation failed: {e}")
                 print("Using default configuration.")
     
     def create_sample_config(self) -> bool:
@@ -592,12 +591,19 @@ def update_widget_cache(result: SpeedTestResult) -> bool:
     This function is shared between CLI and GUI to maintain consistency
     in how the KDE Plasma widget cache is updated.
 
+    Only valid results are cached. Invalid results are silently ignored
+    to prevent misleading widget displays.
+
     Args:
         result: Test result to cache
 
     Returns:
         True if cache updated successfully, False otherwise
     """
+    # Don't cache invalid results
+    if not result.is_valid:
+        return False
+
     try:
         from pathlib import Path
         import json
@@ -608,7 +614,7 @@ def update_widget_cache(result: SpeedTestResult) -> bool:
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         cache_data = {
-            "status": "success",
+            "status": "success" if result.is_valid else "failed",
             "download": round(result.download_mbps, 1),
             "upload": round(result.upload_mbps, 1),
             "ping": round(result.ping_ms, 0),
@@ -622,7 +628,6 @@ def update_widget_cache(result: SpeedTestResult) -> bool:
             json.dump(cache_data, f, ensure_ascii=False, indent=2)
 
         return True
-    except Exception as e:
-        # Silently fail - widget cache is optional
-        print(f"Note: Failed to update widget cache: {e}")
+    except Exception:
+        # Widget cache is optional - silently fail
         return False

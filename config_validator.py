@@ -5,65 +5,86 @@ Configuration Validation Module
 Provides schema validation and type checking for speedtest configuration.
 """
 
-from typing import Dict, Any, List, Tuple, Union
+from typing import Dict, Any, List, Tuple, Union, Optional
 import json
 from pathlib import Path
 from speedtest_core import SpeedTestConfig
 
 
+def _build_schema() -> Dict[str, Any]:
+    """Build schema dynamically from SpeedTestConfig.VALIDATION_RULES.
+
+    This ensures the validator always stays in sync with the core config.
+    Module-level function to avoid class initialization issues.
+    """
+    schema = {}
+
+    # Schema descriptions for each field
+    descriptions = {
+        'bits_to_mbps': 'Conversion factor from bits to Mbps',
+        'connectivity_check_timeout': 'Timeout for network connectivity check (seconds)',
+        'speedtest_timeout': 'Timeout for speed test execution (seconds)',
+        'max_retries': 'Maximum number of retry attempts',
+        'retry_delay': 'Delay between retry attempts (seconds)',
+        'max_typical_speed_gbps': 'Threshold for typical internet speed (Gbps)',
+        'max_reasonable_speed_gbps': 'Maximum reasonable internet speed (Gbps)',
+        'max_typical_ping_ms': 'Threshold for typical ping latency (ms)',
+        'max_reasonable_ping_ms': 'Maximum reasonable ping latency (ms)',
+    }
+
+    # Build schema from VALIDATION_RULES
+    for key, (min_val, max_val) in SpeedTestConfig.VALIDATION_RULES.items():
+        # Determine type from default value to avoid hardcoding
+        default_value = SpeedTestConfig.DEFAULT_CONFIG.get(key)
+        if isinstance(default_value, bool):
+            field_type = bool
+        elif isinstance(default_value, int):
+            field_type = int
+        else:
+            field_type = (int, float)
+
+        schema[key] = {
+            'type': field_type,
+            'min': min_val,
+            'max': max_val,
+            'description': descriptions.get(key, f'Configuration for {key}')
+        }
+
+    # Add boolean fields (not in VALIDATION_RULES)
+    schema['show_detailed_progress'] = {
+        'type': bool,
+        'description': 'Show detailed progress information'
+    }
+    schema['save_results_to_database'] = {
+        'type': bool,
+        'description': 'Save test results to SQLite database'
+    }
+
+    return schema
+
+
 class ConfigValidator:
     """Configuration validator with schema checking."""
 
-    @staticmethod
-    def _build_schema() -> Dict[str, Any]:
-        """Build schema dynamically from SpeedTestConfig.VALIDATION_RULES.
+    # Cache for lazily-built schema
+    _schema_cache: Optional[Dict[str, Any]] = None
 
-        This ensures the validator always stays in sync with the core config.
+    @classmethod
+    def get_schema(cls) -> Dict[str, Any]:
+        """Get the validation schema, building it lazily on first access.
+
+        Returns:
+            Schema dictionary
         """
-        schema = {}
+        if cls._schema_cache is None:
+            cls._schema_cache = _build_schema()
+        return cls._schema_cache
 
-        # Schema descriptions for each field
-        descriptions = {
-            'bits_to_mbps': 'Conversion factor from bits to Mbps',
-            'connectivity_check_timeout': 'Timeout for network connectivity check (seconds)',
-            'speedtest_timeout': 'Timeout for speed test execution (seconds)',
-            'max_retries': 'Maximum number of retry attempts',
-            'retry_delay': 'Delay between retry attempts (seconds)',
-            'max_typical_speed_gbps': 'Threshold for typical internet speed (Gbps)',
-            'max_reasonable_speed_gbps': 'Maximum reasonable internet speed (Gbps)',
-            'max_typical_ping_ms': 'Threshold for typical ping latency (ms)',
-            'max_reasonable_ping_ms': 'Maximum reasonable ping latency (ms)',
-        }
-
-        # Build schema from VALIDATION_RULES
-        for key, (min_val, max_val) in SpeedTestConfig.VALIDATION_RULES.items():
-            # Determine type based on key
-            if key == 'max_retries':
-                field_type = int
-            else:
-                field_type = (int, float)
-
-            schema[key] = {
-                'type': field_type,
-                'min': min_val,
-                'max': max_val,
-                'description': descriptions.get(key, f'Configuration for {key}')
-            }
-
-        # Add boolean fields (not in VALIDATION_RULES)
-        schema['show_detailed_progress'] = {
-            'type': bool,
-            'description': 'Show detailed progress information'
-        }
-        schema['save_results_to_database'] = {
-            'type': bool,
-            'description': 'Save test results to SQLite database'
-        }
-
-        return schema
-
-    # Build schema at class definition time
-    SCHEMA = _build_schema.__func__()
+    # Backward compatibility property
+    @property
+    def SCHEMA(self) -> Dict[str, Any]:
+        """Backward compatibility property for SCHEMA access."""
+        return self.get_schema()
 
     @classmethod
     def sync_schema_from_core(cls) -> List[str]:
@@ -86,18 +107,18 @@ class ConfigValidator:
         Returns:
             Tuple of (is_valid, error_messages)
         """
-        # Auto-sync schema on first use
-        cls.sync_schema_from_core()
+        # Get schema (built lazily on first access)
+        schema = cls.get_schema()
 
         errors = []
-        
+
         # Check for unknown keys
-        unknown_keys = set(config.keys()) - set(cls.SCHEMA.keys())
+        unknown_keys = set(config.keys()) - set(schema.keys())
         if unknown_keys:
             errors.append(f"Unknown configuration keys: {', '.join(unknown_keys)}")
-        
+
         # Validate each known key
-        for key, rules in cls.SCHEMA.items():
+        for key, rules in schema.items():
             if key in config:
                 value = config[key]
                 
@@ -157,8 +178,8 @@ class ConfigValidator:
     def get_schema_documentation(cls) -> str:
         """Get human-readable schema documentation."""
         doc_lines = ["Configuration Schema:", "=" * 50]
-        
-        for key, rules in cls.SCHEMA.items():
+
+        for key, rules in cls.get_schema().items():
             type_info = rules['type'] if isinstance(rules['type'], tuple) else (rules['type'],)
             type_names = [t.__name__ for t in type_info]
             
@@ -181,13 +202,13 @@ class ConfigValidator:
     def create_valid_config_template(cls) -> Dict[str, Any]:
         """Create a valid configuration template with default values."""
         template = {}
-        
+
         # Use defaults from SpeedTestConfig to ensure a single source of truth
         defaults = SpeedTestConfig.DEFAULT_CONFIG
-        
-        for key in cls.SCHEMA.keys():
+
+        for key in cls.get_schema().keys():
             template[key] = defaults.get(key)
-        
+
         return template
 
 

@@ -36,20 +36,23 @@ class TestResultStorage:
             sqlite3.Error: If connection initialization fails
         """
         if self._conn is None:
-            conn = None
+            temp_conn = None
             try:
                 # Create connection and initialize settings atomically
-                conn = sqlite3.connect(self.db_path)
-                conn.execute("PRAGMA journal_mode=WAL")
-                conn.execute("PRAGMA busy_timeout=5000")
-                conn.row_factory = sqlite3.Row
-                # Only assign to self._conn after full initialization succeeds
-                self._conn = conn
+                temp_conn = sqlite3.connect(self.db_path)
+                # Set autocommit mode for PRAGMAs to execute immediately
+                temp_conn.isolation_level = None
+                temp_conn.execute("PRAGMA journal_mode=WAL")
+                temp_conn.execute("PRAGMA busy_timeout=5000")
+                temp_conn.row_factory = sqlite3.Row
+                # Only assign after ALL initialization succeeds
+                self._conn = temp_conn
+                temp_conn = None  # Prevent cleanup if successful
             except Exception:
                 # Close partial connection and re-raise
-                if conn is not None:
+                if temp_conn is not None:
                     try:
-                        conn.close()
+                        temp_conn.close()
                     except Exception:
                         pass  # Ignore errors during cleanup
                 raise

@@ -269,14 +269,14 @@ KV = '''
 
 class SpeedTestMainScreen(MDScreen):
     """Main screen for speed test application."""
-    
+
     # Properties for data binding
     status_text = StringProperty("Ready to test")
     progress_text = StringProperty("")
     progress_value = NumericProperty(0)
     is_testing = BooleanProperty(False)
     button_text = StringProperty("Start Speed Test")
-    
+
     # Results properties
     download_speed = NumericProperty(0)
     upload_speed = NumericProperty(0)
@@ -287,7 +287,10 @@ class SpeedTestMainScreen(MDScreen):
     download_text = StringProperty("0.0 Mbps")
     upload_text = StringProperty("0.0 Mbps")
     ping_text = StringProperty("0 ms")
-    
+
+    # Class-level flag to track if atexit handler is registered
+    _atexit_registered = False
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -301,8 +304,16 @@ class SpeedTestMainScreen(MDScreen):
         self.update_event = None
         self.settings_dialog = None
 
+        # Instance cleanup tracking
+        self._cleanup_done = False
+        self._atexit_handler = None
+
         # Register cleanup handler for guaranteed resource cleanup
-        atexit.register(self._cleanup_resources)
+        # Only register once per class to avoid duplicate handlers
+        if not SpeedTestMainScreen._atexit_registered:
+            self._atexit_handler = self._cleanup_resources
+            atexit.register(self._atexit_handler)
+            SpeedTestMainScreen._atexit_registered = True
 
         # Check initial network status
         Clock.schedule_once(self.check_initial_network, 0.5)
@@ -313,9 +324,15 @@ class SpeedTestMainScreen(MDScreen):
         This is called both on normal shutdown (via on_stop) and on abnormal
         termination (via atexit). Safe to call multiple times.
         """
+        # Skip if already cleaned up
+        if self._cleanup_done:
+            return
+
         try:
             if hasattr(self, 'storage') and self.storage:
                 self.storage.close()
+                self.storage = None
+            self._cleanup_done = True
         except Exception as e:
             # Use stderr for logging since stdout may be closed
             print(f"Error during database cleanup: {e}", file=sys.stderr)
@@ -492,35 +509,19 @@ class SpeedTestMainScreen(MDScreen):
             Clock.unschedule(self.update_event)
             self.update_event = None
         
-        # Ensure async runner is properly cleaned up with improved timeout
+        # Ensure async runner is properly cleaned up
         if hasattr(self.async_runner, '_thread') and self.async_runner._thread:
             if self.async_runner._thread.is_alive():
                 # First try gentle cancellation
                 self.async_runner.cancel_test()
                 try:
-                    # Calculate worst-case timeout for thread cleanup
-                    # Components:
-                    # 1. Test execution time per retry: base_timeout * max_retries
-                    # 2. Exponential backoff delays between retries (capped at 30s each)
-                    # 3. Safety buffer for cleanup
-
-                    base_timeout = self.config.get('speedtest_timeout', 60)
-                    max_retries = self.config.get('max_retries', 3)
-                    retry_delay_base = self.config.get('retry_delay', 2)
-
-                    # Sum of all possible backoff delays (capped at 30s per delay)
-                    total_backoff = sum(
-                        min(retry_delay_base * (2 ** i), 30)
-                        for i in range(max_retries - 1)  # -1 because no delay after last retry
-                    )
-
-                    # Total timeout = all retries + all backoffs + buffer
-                    timeout = (base_timeout * max_retries) + total_backoff + 10
-
-                    self.async_runner._thread.join(timeout=timeout)
+                    # Use reasonable timeout cap to prevent UI blocking
+                    # Daemon thread will clean up if it takes longer
+                    CLEANUP_TIMEOUT = 30  # seconds
+                    self.async_runner._thread.join(timeout=CLEANUP_TIMEOUT)
                     if self.async_runner._thread.is_alive():
                         # Log warning but don't force - daemon thread will clean up
-                        print(f"Warning: Background test thread did not terminate within {timeout}s")
+                        print(f"Warning: Background test thread did not terminate within {CLEANUP_TIMEOUT}s")
                 except Exception:
                     pass  # Thread cleanup failed, but continue
         

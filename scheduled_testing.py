@@ -20,14 +20,18 @@ from test_results_storage import TestResultStorage
 
 class ScheduledTestRunner:
     """Runs speed tests on a scheduled interval."""
-    
-    def __init__(self, 
+
+    # Constants for scheduler timing
+    OVERDUE_YIELD_SECONDS = 0.1  # Minimal sleep to prevent busy loop when test overdue
+    MAX_SLEEP_SECONDS = 60  # Cap sleep time for responsive shutdown
+
+    def __init__(self,
                  interval_minutes: int = 60,
                  config: Optional[SpeedTestConfig] = None,
                  storage: Optional[TestResultStorage] = None,
                  result_callback: Optional[Callable] = None):
         """Initialize scheduled test runner.
-        
+
         Args:
             interval_minutes: Minutes between tests
             config: SpeedTestConfig instance
@@ -38,14 +42,14 @@ class ScheduledTestRunner:
         self.config = config or SpeedTestConfig()
         self.storage = storage or TestResultStorage()
         self.result_callback = result_callback
-        
+
         self.engine = SpeedTestEngine(self.config)
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._next_test_time: Optional[datetime] = None
         self._next_test_monotonic: Optional[float] = None
-        
+
         # Statistics
         self.tests_completed = 0
         self.tests_failed = 0
@@ -106,15 +110,15 @@ class ScheduledTestRunner:
                 self._next_test_time = datetime.now() + timedelta(minutes=self.interval_minutes)
                 print(f"⏰ Next test: {self._next_test_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
-            # Calculate sleep time until next test
-            time_until_next = self._next_test_monotonic - time.monotonic()
+            # Calculate sleep time using already-current monotonic time
+            time_until_next = self._next_test_monotonic - current_monotonic
 
             if time_until_next <= 0:
                 # Test is overdue - minimal sleep to yield CPU before looping
-                sleep_seconds = 0.1
+                sleep_seconds = self.OVERDUE_YIELD_SECONDS
             else:
-                # Cap sleep at 60 seconds to allow periodic status checks
-                sleep_seconds = min(60, time_until_next)
+                # Cap sleep for responsive shutdown on stop signal
+                sleep_seconds = min(self.MAX_SLEEP_SECONDS, time_until_next)
 
             # Use event.wait() for efficient blocking - returns True if stop signal received
             if self._stop_event.wait(timeout=sleep_seconds):
