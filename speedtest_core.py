@@ -211,6 +211,11 @@ class SpeedTestConfig:
                     try:
                         _lock_file_shared(f)
                         file_config = json.load(f)
+                    except json.JSONDecodeError as e:
+                        print(f"Error: Configuration file contains invalid JSON: {e}")
+                        print(f"Location: Line {e.lineno}, Column {e.colno}")
+                        print("Using default configuration.")
+                        return  # Exit early, lock released by outer finally
                     finally:
                         _unlock_file(f)
 
@@ -218,10 +223,14 @@ class SpeedTestConfig:
                 validated_config = self._validate_and_update_config(file_config)
                 self.config.update(validated_config)
 
-            except (json.JSONDecodeError, IOError, OSError) as e:
-                print(f"Error loading configuration file: {e}")
+            except (IOError, OSError) as e:
+                print(f"Error accessing configuration file: {e}")
                 print("Using default configuration.")
-                # Keep defaults if config file is invalid
+            except Exception as e:
+                print(f"Unexpected error loading configuration: {e}")
+                import traceback
+                traceback.print_exc()
+                print("Using default configuration.")
     
     def create_sample_config(self) -> bool:
         """Create a sample configuration file. Returns True if created."""
@@ -230,7 +239,8 @@ class SpeedTestConfig:
                 with open(self.config_file, 'w') as f:
                     json.dump(self.DEFAULT_CONFIG, f, indent=2)
                 return True
-            except IOError:
+            except IOError as e:
+                print(f"Error creating config file: {e}")
                 return False
         return False
     
@@ -574,3 +584,45 @@ class AsyncSpeedTestRunner:
     def is_running(self) -> bool:
         """Check if test is currently running."""
         return self._thread is not None and self._thread.is_alive()
+
+
+def update_widget_cache(result: SpeedTestResult) -> bool:
+    """Update Plasma widget cache with test result.
+
+    This function is shared between CLI and GUI to maintain consistency
+    in how the KDE Plasma widget cache is updated.
+
+    Args:
+        result: Test result to cache
+
+    Returns:
+        True if cache updated successfully, False otherwise
+    """
+    try:
+        from pathlib import Path
+        import json
+        from datetime import datetime
+
+        cache_dir = Path.home() / '.cache' / 'plasma-speedtest'
+        cache_file = cache_dir / 'widget_cache.json'
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        cache_data = {
+            "status": "success",
+            "download": round(result.download_mbps, 1),
+            "upload": round(result.upload_mbps, 1),
+            "ping": round(result.ping_ms, 0),
+            "server": result.server_info,
+            "timestamp": datetime.fromtimestamp(result.timestamp).strftime("%Y-%m-%d %H:%M:%S"),
+            "is_valid": result.is_valid,
+            "warnings": result.warnings
+        }
+
+        with open(cache_file, 'w', encoding='utf-8') as f:
+            json.dump(cache_data, f, ensure_ascii=False, indent=2)
+
+        return True
+    except Exception as e:
+        # Silently fail - widget cache is optional
+        print(f"Note: Failed to update widget cache: {e}")
+        return False

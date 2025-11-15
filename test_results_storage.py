@@ -31,12 +31,28 @@ class TestResultStorage:
 
         Returns:
             Active SQLite connection
+
+        Raises:
+            sqlite3.Error: If connection initialization fails
         """
         if self._conn is None:
-            self._conn = sqlite3.connect(self.db_path)
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.execute("PRAGMA busy_timeout=5000")
-            self._conn.row_factory = sqlite3.Row
+            conn = None
+            try:
+                # Create connection and initialize settings atomically
+                conn = sqlite3.connect(self.db_path)
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA busy_timeout=5000")
+                conn.row_factory = sqlite3.Row
+                # Only assign to self._conn after full initialization succeeds
+                self._conn = conn
+            except Exception:
+                # Close partial connection and re-raise
+                if conn is not None:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass  # Ignore errors during cleanup
+                raise
         return self._conn
 
     def close(self) -> None:
@@ -265,7 +281,13 @@ class TestResultStorage:
 
         Returns:
             Number of exported records
+
+        Raises:
+            ValueError: If batch_size is invalid
         """
+        if batch_size <= 0:
+            raise ValueError(f"batch_size must be positive, got {batch_size}")
+
         total_exported = 0
 
         with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
@@ -354,7 +376,13 @@ class TestResultStorage:
 
         Returns:
             Number of exported records
+
+        Raises:
+            ValueError: If batch_size is invalid
         """
+        if batch_size <= 0:
+            raise ValueError(f"batch_size must be positive, got {batch_size}")
+
         all_results = []
         offset = 0
 

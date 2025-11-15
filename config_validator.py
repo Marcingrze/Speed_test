@@ -13,107 +13,68 @@ from speedtest_core import SpeedTestConfig
 
 class ConfigValidator:
     """Configuration validator with schema checking."""
-    
-    SCHEMA = {
-        'bits_to_mbps': {
-            'type': (int, float),
-            'min': 1000,
-            'max': 10_000_000,
-            'description': 'Conversion factor from bits to Mbps'
-        },
-        'connectivity_check_timeout': {
-            'type': (int, float),
-            'min': 1,
-            'max': 60,
-            'description': 'Timeout for network connectivity check (seconds)'
-        },
-        'speedtest_timeout': {
-            'type': (int, float),
-            'min': 10,
-            'max': 300,
-            'description': 'Timeout for speed test execution (seconds)'
-        },
-        'max_retries': {
-            'type': int,
-            'min': 1,
-            'max': 10,
-            'description': 'Maximum number of retry attempts'
-        },
-        'retry_delay': {
-            'type': (int, float),
-            'min': 0.5,
-            'max': 30,
-            'description': 'Delay between retry attempts (seconds)'
-        },
-        'max_typical_speed_gbps': {
-            'type': (int, float),
-            'min': 0.1,
-            'max': 100,
-            'description': 'Threshold for typical internet speed (Gbps)'
-        },
-        'max_reasonable_speed_gbps': {
-            'type': (int, float),
-            'min': 1,
-            'max': 1000,
-            'description': 'Maximum reasonable internet speed (Gbps)'
-        },
-        'max_typical_ping_ms': {
-            'type': (int, float),
-            'min': 1,
-            'max': 5000,
-            'description': 'Threshold for typical ping latency (ms)'
-        },
-        'max_reasonable_ping_ms': {
-            'type': (int, float),
-            'min': 100,
-            'max': 30000,
-            'description': 'Maximum reasonable ping latency (ms)'
-        },
-        'show_detailed_progress': {
+
+    @staticmethod
+    def _build_schema() -> Dict[str, Any]:
+        """Build schema dynamically from SpeedTestConfig.VALIDATION_RULES.
+
+        This ensures the validator always stays in sync with the core config.
+        """
+        schema = {}
+
+        # Schema descriptions for each field
+        descriptions = {
+            'bits_to_mbps': 'Conversion factor from bits to Mbps',
+            'connectivity_check_timeout': 'Timeout for network connectivity check (seconds)',
+            'speedtest_timeout': 'Timeout for speed test execution (seconds)',
+            'max_retries': 'Maximum number of retry attempts',
+            'retry_delay': 'Delay between retry attempts (seconds)',
+            'max_typical_speed_gbps': 'Threshold for typical internet speed (Gbps)',
+            'max_reasonable_speed_gbps': 'Maximum reasonable internet speed (Gbps)',
+            'max_typical_ping_ms': 'Threshold for typical ping latency (ms)',
+            'max_reasonable_ping_ms': 'Maximum reasonable ping latency (ms)',
+        }
+
+        # Build schema from VALIDATION_RULES
+        for key, (min_val, max_val) in SpeedTestConfig.VALIDATION_RULES.items():
+            # Determine type based on key
+            if key == 'max_retries':
+                field_type = int
+            else:
+                field_type = (int, float)
+
+            schema[key] = {
+                'type': field_type,
+                'min': min_val,
+                'max': max_val,
+                'description': descriptions.get(key, f'Configuration for {key}')
+            }
+
+        # Add boolean fields (not in VALIDATION_RULES)
+        schema['show_detailed_progress'] = {
             'type': bool,
             'description': 'Show detailed progress information'
-        },
-        'save_results_to_database': {
+        }
+        schema['save_results_to_database'] = {
             'type': bool,
             'description': 'Save test results to SQLite database'
         }
-    }
+
+        return schema
+
+    # Build schema at class definition time
+    SCHEMA = _build_schema.__func__()
 
     @classmethod
     def sync_schema_from_core(cls) -> List[str]:
-        """Synchronize schema ranges from SpeedTestConfig.
+        """Verify schema consistency with SpeedTestConfig.
 
         Returns:
-            List of warnings/errors if drift detected
+            List of warnings/errors if drift detected (now always empty since schema is dynamic)
         """
-        warnings = []
-
-        # Verify all core validation rules exist in schema
-        for key in SpeedTestConfig.VALIDATION_RULES:
-            if key not in cls.SCHEMA:
-                error = f"DRIFT ERROR: SpeedTestConfig.VALIDATION_RULES has '{key}' not in ConfigValidator.SCHEMA"
-                warnings.append(error)
-                print(f"ERROR: {error}")
-
-        # Verify all schema keys exist in core config
-        boolean_keys = ('show_detailed_progress', 'save_results_to_database')
-        for key in cls.SCHEMA:
-            if key not in SpeedTestConfig.DEFAULT_CONFIG:
-                if key in boolean_keys:
-                    continue  # Boolean keys don't have VALIDATION_RULES
-                error = f"DRIFT ERROR: ConfigValidator.SCHEMA has '{key}' not in SpeedTestConfig"
-                warnings.append(error)
-                print(f"ERROR: {error}")
-
-        # Sync min/max values
-        for key, (min_val, max_val) in SpeedTestConfig.VALIDATION_RULES.items():
-            if key in cls.SCHEMA:
-                if cls.SCHEMA[key].get('min') != min_val or cls.SCHEMA[key].get('max') != max_val:
-                    warnings.append(f"Syncing {key}: {cls.SCHEMA[key].get('min')}-{cls.SCHEMA[key].get('max')} → {min_val}-{max_val}")
-                cls.SCHEMA[key]['min'] = min_val
-                cls.SCHEMA[key]['max'] = max_val
-
-        return warnings
+        # Schema is now built dynamically from VALIDATION_RULES, so no sync needed
+        # This method is kept for backward compatibility
+        return []
 
     @classmethod
     def validate_config(cls, config: Dict[str, Any]) -> Tuple[bool, List[str]]:

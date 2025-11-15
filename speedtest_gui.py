@@ -10,6 +10,7 @@ import os
 import sys
 from pathlib import Path
 import threading
+import atexit
 
 # Set environment variables for Kivy before importing
 os.environ['KIVY_GL_BACKEND'] = 'gl'
@@ -35,7 +36,7 @@ from kivy.metrics import dp
 from kivy.lang import Builder
 from kivy.properties import StringProperty, NumericProperty, BooleanProperty
 
-from speedtest_core import SpeedTestEngine, SpeedTestConfig, AsyncSpeedTestRunner
+from speedtest_core import SpeedTestEngine, SpeedTestConfig, AsyncSpeedTestRunner, update_widget_cache
 from test_results_storage import TestResultStorage
 
 
@@ -300,9 +301,27 @@ class SpeedTestMainScreen(MDScreen):
         self.update_event = None
         self.settings_dialog = None
 
+        # Register cleanup handler for guaranteed resource cleanup
+        atexit.register(self._cleanup_resources)
+
         # Check initial network status
         Clock.schedule_once(self.check_initial_network, 0.5)
-    
+
+    def _cleanup_resources(self):
+        """Cleanup resources with proper error logging.
+
+        This is called both on normal shutdown (via on_stop) and on abnormal
+        termination (via atexit). Safe to call multiple times.
+        """
+        try:
+            if hasattr(self, 'storage') and self.storage:
+                self.storage.close()
+        except Exception as e:
+            # Use stderr for logging since stdout may be closed
+            print(f"Error during database cleanup: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+
     def check_initial_network(self, dt):
         """Check network connectivity on app start (non-blocking)."""
         def _bg_check():
@@ -439,33 +458,8 @@ class SpeedTestMainScreen(MDScreen):
                         bg_color=(0.8, 0.4, 0, 1)  # Orange warning color
                     ).open()
 
-            # Update Plasma widget cache
-            try:
-                from pathlib import Path
-                import json as json_module
-                from datetime import datetime as dt
-
-                cache_dir = Path.home() / '.cache' / 'plasma-speedtest'
-                cache_file = cache_dir / 'widget_cache.json'
-                cache_dir.mkdir(parents=True, exist_ok=True)
-
-                cache_data = {
-                    "status": "success",
-                    "download": round(result.download_mbps, 1),
-                    "upload": round(result.upload_mbps, 1),
-                    "ping": round(result.ping_ms, 0),
-                    "server": result.server_info,
-                    "timestamp": dt.fromtimestamp(result.timestamp).strftime("%Y-%m-%d %H:%M:%S"),
-                    "is_valid": result.is_valid,
-                    "warnings": result.warnings
-                }
-
-                with open(cache_file, 'w', encoding='utf-8') as f:
-                    json_module.dump(cache_data, f, ensure_ascii=False, indent=2)
-
-                print(f"Widget cache updated: {cache_file}")
-            except Exception as e:
-                print(f"Note: Failed to update widget cache: {e}")
+            # Update Plasma widget cache (shared utility function)
+            update_widget_cache(result)
 
             # Show warnings if any
             if result.warnings:
@@ -617,11 +611,8 @@ class SpeedTestApp(MDApp):
 
     def on_stop(self):
         """Ensure DB connection is closed on app shutdown."""
-        try:
-            if hasattr(self, 'main_screen') and hasattr(self.main_screen, 'storage'):
-                self.main_screen.storage.close()
-        except Exception:
-            pass
+        if hasattr(self, 'main_screen'):
+            self.main_screen._cleanup_resources()
 
 
 def main():

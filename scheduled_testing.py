@@ -89,28 +89,37 @@ class ScheduledTestRunner:
         print("⏹️  Scheduler stopped")
     
     def _scheduler_loop(self) -> None:
-        """Main scheduler loop using monotonic time for reliability."""
+        """Main scheduler loop using monotonic time and event-based waiting."""
         while self._running and not self._stop_event.is_set():
             current_monotonic = time.monotonic()
             current_time = datetime.now()
-            
+
             # Check if it's time for a test using monotonic time
             if current_monotonic >= self._next_test_monotonic:
                 self._run_scheduled_test()
-                
+
                 # Schedule next test using monotonic time
+                # Recalculate current_monotonic after test completes
+                current_monotonic = time.monotonic()
                 self._next_test_monotonic = current_monotonic + (self.interval_minutes * 60)
                 # Update display time for user feedback
-                self._next_test_time = current_time + timedelta(minutes=self.interval_minutes)
+                self._next_test_time = datetime.now() + timedelta(minutes=self.interval_minutes)
                 print(f"⏰ Next test: {self._next_test_time.strftime('%Y-%m-%d %H:%M:%S')}")
-            
-            # Calculate sleep time based on monotonic time
-            # Ensure at least 1 second sleep to prevent busy loop
-            time_until_next = self._next_test_monotonic - current_monotonic
-            sleep_seconds = max(1, min(60, time_until_next))
 
-            # Always sleep to prevent busy loop
-            self._stop_event.wait(timeout=sleep_seconds)
+            # Calculate sleep time until next test
+            time_until_next = self._next_test_monotonic - time.monotonic()
+
+            if time_until_next <= 0:
+                # Test is overdue - minimal sleep to yield CPU before looping
+                sleep_seconds = 0.1
+            else:
+                # Cap sleep at 60 seconds to allow periodic status checks
+                sleep_seconds = min(60, time_until_next)
+
+            # Use event.wait() for efficient blocking - returns True if stop signal received
+            if self._stop_event.wait(timeout=sleep_seconds):
+                # Stop event was set - exit loop
+                break
     
     def _run_scheduled_test(self) -> None:
         """Run a single scheduled test."""

@@ -25,5 +25,12 @@ Thumbs.db
 test_results/
 
 # User configuration files
-speedtest_config.jsonspeedtest_history.db
-speedtest_history.db-*
+speedtest_config.json
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+speedtest_history.db*
+plasma-widget/speedtest_history.db*

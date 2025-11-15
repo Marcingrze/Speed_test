@@ -12,7 +12,7 @@ import sys
 import json
 from typing import Optional
 
-from speedtest_core import SpeedTestEngine, SpeedTestConfig, SpeedTestResult
+from speedtest_core import SpeedTestEngine, SpeedTestConfig, SpeedTestResult, update_widget_cache
 from test_results_storage import TestResultStorage
 
 
@@ -134,36 +134,11 @@ def main() -> int:
                 except Exception:
                     pass  # Ignore cleanup errors
 
-    # Update Plasma widget cache
-    try:
+    # Update Plasma widget cache (shared utility function)
+    if update_widget_cache(result) and not json_output:
         from pathlib import Path
-        import json as json_module
-        from datetime import datetime as dt
-
-        cache_dir = Path.home() / '.cache' / 'plasma-speedtest'
-        cache_file = cache_dir / 'widget_cache.json'
-        cache_dir.mkdir(parents=True, exist_ok=True)
-
-        cache_data = {
-            "status": "success",
-            "download": round(result.download_mbps, 1),
-            "upload": round(result.upload_mbps, 1),
-            "ping": round(result.ping_ms, 0),
-            "server": result.server_info,
-            "timestamp": dt.fromtimestamp(result.timestamp).strftime("%Y-%m-%d %H:%M:%S"),
-            "is_valid": result.is_valid,
-            "warnings": result.warnings
-        }
-
-        with open(cache_file, 'w', encoding='utf-8') as f:
-            json_module.dump(cache_data, f, ensure_ascii=False, indent=2)
-
-        if not json_output:
-            print(f"Widget cache updated: {cache_file}")
-    except Exception as e:
-        # Don't fail if widget cache update fails
-        if not json_output:
-            print(f"Note: Failed to update widget cache: {e}")
+        cache_file = Path.home() / '.cache' / 'plasma-speedtest' / 'widget_cache.json'
+        print(f"Widget cache updated: {cache_file}")
 
     return 0
 
